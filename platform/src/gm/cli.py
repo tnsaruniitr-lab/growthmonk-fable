@@ -188,9 +188,12 @@ def worker(
             samples_per_run=int(payload.get("samples_per_run", 3)),
         )
 
+    from gm.audit.pipeline import handle_audit_page
+
     handlers = {
         "sample_citations": sampler.handle_sample_citations,
         "scheduled_run": _handle_scheduled_run,
+        "audit_page": handle_audit_page,
     }
     stop = threading.Event()
     if with_scheduler:
@@ -200,6 +203,66 @@ def worker(
         t.start()
     typer.echo(f"worker up (handlers: {', '.join(handlers)})")
     jobs_mod.Worker(handlers).run_forever(stop_event=stop)
+
+
+@app.command()
+def audit(
+    domain: str,
+    url: str = typer.Option(None, help="Page URL (default: https://<domain>/)"),
+    now: bool = typer.Option(False, "--now", help="Run inline instead of enqueueing"),
+):
+    """Enqueue (or run) a 103-check page audit."""
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        target = url or f"https://{site['domain_norm']}/"
+        if now:
+            from gm.audit.pipeline import run_page_audit
+            from gm.infra.llm import LlmClient
+
+            audit_id = run_page_audit(
+                conn, org_id=org["id"], site_id=str(site["id"]), url=target, llm=LlmClient()
+            )
+            row = conn.execute(
+                "select status, scores->>'overall_grade' as grade,"
+                " scores->>'overall_score' as score, cost_cents from audits where id=%s",
+                (audit_id,),
+            ).fetchone()
+            conn.commit()
+            typer.echo(
+                f"{audit_id}  {row['status']}  grade={row['grade']}"
+                f" score={row['score']} cost=${float(row['cost_cents']) / 100:.2f}"
+            )
+        else:
+            job_id = jobs_mod.enqueue(
+                conn, type="audit_page", org_id=org["id"], site_id=str(site["id"]),
+                payload={"url": target},
+                idempotency_key=f"audit:{site['id']}:{target}:{dt.date.today().isoformat()}",
+            )
+            conn.commit()
+            typer.echo(f"enqueued job {job_id} (audit_page {target})")
+
+
+@app.command()
+def share(audit_id: str, ttl_days: int = typer.Option(60)):
+    """Create a share token for an audit report; prints the /r/<token> path."""
+    from gm.delivery.shares import create_share
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        token = create_share(conn, org["id"], audit_id, ttl_days=ttl_days)
+        conn.commit()
+    typer.echo(f"/r/{token}")
+
+
+@app.command()
+def serve(host: str = "0.0.0.0", port: int = 8080):
+    """Run the API (share pages + admin)."""
+    import uvicorn
+
+    uvicorn.run("gm.api:app", host=host, port=port)
 
 
 @app.command()
