@@ -1,0 +1,29 @@
+# Gate-1 pre-registered thresholds
+# STATUS: DRAFT — must be reviewed and LOCKED before 2026-07-07 (research commitment).
+# After locking, this file is append-only: changes invalidate the pre-registration.
+status: DRAFT
+locked_at: null
+
+panel:
+  prompts_per_site: 5
+  engines: [openai, perplexity, gemini]
+  samples_per_run: 3          # sample_index 0..2 per prompt x engine per run
+  runs_per_week: 1
+  baseline_window_runs: 3     # >= 9 samples per prompt (pooled engines) before fixes
+  treatment_window_runs: 3    # >= 9 samples per prompt after fixes
+
+movement:                     # per prompt, pooled across engines
+  min_absolute_rate_gain: 0.30       # after_rate - before_rate
+  min_gain_over_control: 0.20        # prompt gain minus mean control-site gain
+  min_samples_per_window: 9
+
+gate:
+  min_prompts_moved: 2               # of 5 — Gate-1 pass condition
+  max_control_drift: 0.15            # mean |control gain| above this = INCONCLUSIVE = FAIL
+
+verdict_rules:
+  - Samples with a recorded error are excluded from both numerator and denominator.
+  - Muddy readout (control drift above max_control_drift) is a FAIL, not a retry.
+  - Correlational signals never rescue a null (research kill-criterion 1).
+  - Claim ceiling while unlocked or single-lever attribution is absent:
+    "movement vs control, lever unattributed".
