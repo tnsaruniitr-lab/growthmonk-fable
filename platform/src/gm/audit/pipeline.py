@@ -401,6 +401,9 @@ def _finish(conn, audit_id, *, status: str, gate_state: str, scores: dict,
 
 def _persist_findings(conn, org_id, audit_id, findings: list[dict],
                       status_map: dict[str, dict], registry: Registry) -> None:
+    from gm.audit.citations import attach_citations
+
+    attach_citations(findings)  # top-3 brain citations onto fail/warn findings
     params = []
     for f in findings:
         info = status_map.get(f["check_id"], {})
@@ -409,12 +412,13 @@ def _persist_findings(conn, org_id, audit_id, findings: list[dict],
             org_id, audit_id, f["check_id"], f["check_version"], f["status"], f["badge"],
             check.get("fix_type"),
             Jsonb({"note": info.get("note", ""), "source": info.get("source", "llm")}),
+            Jsonb(f.get("citations") or []),
         ))
     if not params:
         return
     conn.cursor().executemany(
         "insert into audit_findings (org_id, audit_id, check_id, check_version, status,"
-        " badge, fix_type, evidence) values (%s, %s, %s, %s, %s, %s, %s, %s)"
+        " badge, fix_type, evidence, citations) values (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
         " on conflict (audit_id, check_id) do nothing",
         params,
     )

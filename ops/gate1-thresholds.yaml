@@ -25,5 +25,5 @@ verdict_rules:
   - Samples with a recorded error are excluded from both numerator and denominator.
   - Muddy readout (control drift above max_control_drift) is a FAIL, not a retry.
   - Correlational signals never rescue a null (research kill-criterion 1).
-  - Claim ceiling while unlocked or single-lever attribution is absent:
-    "movement vs control, lever unattributed".
+  - 'Claim ceiling while unlocked or single-lever attribution is absent:
+    "movement vs control, lever unattributed"'

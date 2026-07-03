@@ -1,0 +1,1109 @@
+{
+  "version": "1.4",
+  "last_curated": "2026-05-03",
+  "source": "extracted from references/brain-mappings.md of website-seo-aeo-auditor v3",
+  "sieve_project_id": "aldraxqsqeywluohskhs",
+  "sieve_brain_size": {
+    "rules": 4980,
+    "anti_patterns": 2843
+  },
+  "usage": "For each failed/warned check in an audit, look up the check_id here to get Sieve rule + anti-pattern IDs. Fetch those from the Sieve database directly (SQL, not keyword search). Attach as evidence citations in the finding. If a check has no mapping, finding stands on static-rules alone.",
+  "mappings": {
+    "A1_https_enforcement": {
+      "category": "technical_seo",
+      "rules": [
+        1489
+      ],
+      "anti_patterns": [
+        812
+      ],
+      "notes": "Rule 1489 (0.95) 'Enforce HTTPS across entire domain for AI citation trust.' AP#812 'Operating key pages without HTTPS.'"
+    },
+    "A4_canonical_tag": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [
+        264
+      ],
+      "notes": "AP#264 'Specifying conflicting canonical URLs across different methods' (high, seo)."
+    },
+    "A5_robots_meta_indexing": {
+      "category": "technical_seo",
+      "rules": [
+        1166,
+        1440
+      ],
+      "anti_patterns": [
+        785,
+        793
+      ],
+      "notes": "Rule 1166 (0.99) 'Noindex excludes page.' Rule 1440 (0.99) 'AI Overviews indexing requirement.' AP#785 'Blocking Googlebot.' AP#793 'Applying nosnippet/noindex to AI Overview content.'"
+    },
+    "A9_viewport_meta": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [
+        326
+      ],
+      "notes": "AP#326 'Mobile version containing less content than desktop' (high, seo)."
+    },
+    "A10_robots_txt_crawling": {
+      "category": "technical_seo",
+      "rules": [
+        1442,
+        534,
+        1165
+      ],
+      "anti_patterns": [
+        785
+      ],
+      "notes": "Rule 1442 (0.98) 'AI Overviews crawlability requirement.' Rule 534 (0.99) 'noindex in robots.txt not supported by Google.' Rule 1165 (0.99) 'Googlebot access blocked by robots.txt.'"
+    },
+    "A11_sitemap_referenced": {
+      "category": "technical_seo",
+      "rules": [
+        563,
+        1482
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 563 (0.99) 'Absolute URLs required in sitemaps.' Rule 1482 (0.90) 'Submit sitemaps with accurate lastmod for Perplexity crawling.'"
+    },
+    "A12_js_rendering_dependency": {
+      "category": "technical_seo",
+      "rules": [
+        1481,
+        1419,
+        1488
+      ],
+      "anti_patterns": [
+        325,
+        804,
+        809
+      ],
+      "notes": "Rule 1481 (0.99) 'Serve content in raw HTML for Perplexity.' AP#325 'Relying solely on client-side rendering' (high). AP#804 'Hiding key content behind JavaScript' (high)."
+    },
+    "B10_core_web_vitals": {
+      "category": "performance",
+      "rules": [
+        7176,
+        7190
+      ],
+      "anti_patterns": [
+        277
+      ],
+      "notes": "Rule #7176 (Backlinko, 0.95) 'LCP Good Threshold Under 2.5 Seconds.' Rule #7190 (Backlinko, 0.95) 'INP Threshold 200ms for Good Responsiveness.' AP#277 'LCP exceeding 2.5s' (high, seo)."
+    },
+    "C1_heading_hierarchy": {
+      "category": "on_page_seo",
+      "rules": [],
+      "anti_patterns": [
+        773
+      ],
+      "notes": "AP#773 'Using generic or vague heading labels.'"
+    },
+    "C2_keyword_first_100_words": {
+      "category": "on_page_seo",
+      "rules": [
+        1448
+      ],
+      "anti_patterns": [
+        774
+      ],
+      "notes": "Rule 1448 (0.95) 'Answer-first structure for AI Overview citation.' AP#774 'Burying key answers after preamble.'"
+    },
+    "C3_internal_links": {
+      "category": "on_page_seo",
+      "rules": [],
+      "anti_patterns": [
+        295
+      ],
+      "notes": "AP#295 'Using non-anchor elements for navigation links' (high, seo)."
+    },
+    "C6_word_count_thin_content": {
+      "category": "on_page_seo",
+      "rules": [],
+      "anti_patterns": [
+        800,
+        1328
+      ],
+      "notes": "AP#800 'Publishing thin content that only summarises existing information' (high). AP#1328 'Thin content that only defines terms and lists basic tips' (high, almcorp)."
+    },
+    "C8_outbound_citations": {
+      "category": "on_page_seo",
+      "rules": [
+        1478
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1478 (0.92) 'Cite primary authoritative sources inline for AI trust signals.'"
+    },
+    "C12_visible_date_staleness": {
+      "category": "on_page_seo",
+      "rules": [
+        1474
+      ],
+      "anti_patterns": [
+        799
+      ],
+      "notes": "Rule 1474 (0.95) 'Signal content freshness with visible timestamps and substantive updates.' AP#799 'Cosmetic timestamp updates without substantive content changes' (medium)."
+    },
+    "D1_jsonld_present": {
+      "category": "schema",
+      "rules": [
+        3
+      ],
+      "anti_patterns": [
+        4763
+      ],
+      "notes": "Rule 3 (0.90) 'Schema markup coverage rule.' AP#4763 (Backlinko, high) 'Omitting Schema Markup' — primary AEO failure pattern."
+    },
+    "D3_page_appropriate_type": {
+      "category": "schema",
+      "rules": [
+        3,
+        1696,
+        1682,
+        1635,
+        1636
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1696 (0.98) 'Product schema must not be applied to category listing pages.' Rule 1682 (Schema.org, 0.97) 'Use LocalBusiness Instead of Bare Place for Commercial Entities.'"
+    },
+    "D5_breadcrumblist": {
+      "category": "schema",
+      "rules": [
+        1555,
+        1556,
+        1557
+      ],
+      "anti_patterns": [],
+      "notes": "Rules 1555-1557 (all 0.99) cover BreadcrumbList itemListElement, position, and name requirements."
+    },
+    "D6_required_fields": {
+      "category": "schema",
+      "rules": [
+        1710,
+        1695,
+        1668,
+        1600,
+        1674,
+        1654,
+        1532
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1710 (0.99) 'Product: name and offers mandatory.' Rule 1668 (0.98) 'Organization must include name and URL.' Rule 1600 (0.98) 'FAQPage mainEntity and acceptedAnswer required.' Rule 1532 (0.99) 'AggregateRating must have ratingValue and count.'"
+    },
+    "D7_recommended_fields_person": {
+      "category": "schema",
+      "rules": [
+        1678,
+        1679
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1678 (0.92) 'Person affiliation and worksFor for authority signals.' Rule 1679 (0.90) 'Person hasCredential for expertise documentation.'"
+    },
+    "D9_faqpage_schema_vs_visible": {
+      "category": "schema",
+      "rules": [
+        1600,
+        1495,
+        1496,
+        1606,
+        1602,
+        1603,
+        7375
+      ],
+      "anti_patterns": [
+        813,
+        814,
+        823,
+        873,
+        874,
+        876,
+        815,
+        816
+      ],
+      "notes": "Rule 1495 (0.98) 'FAQPage requires visible content.' Rule 1496 (0.98) 'Markup text must match visible content.' Rule 7375 (Schema.org, 0.98) 'Schema Markup Must Match Visible Content.' AP#815 'Including promotional content in FAQ answers' (high). AP#816 'Writing truncated FAQ answers' (medium)."
+    },
+    "D11_datepublished_datemodified": {
+      "category": "schema",
+      "rules": [
+        1474
+      ],
+      "anti_patterns": [
+        799
+      ],
+      "notes": "Rule 1474 (0.95) freshness timestamps. AP#799 cosmetic-only updates."
+    },
+    "D12_author_person_schema": {
+      "category": "schema",
+      "rules": [
+        1674,
+        1676,
+        1678,
+        1679
+      ],
+      "anti_patterns": [
+        798
+      ],
+      "notes": "Rule 1674 (0.99) Person must include name. Rule 1676 (0.98) Person author for E-E-A-T. Rule 1678 (0.92) affiliation/worksFor. Rule 1679 (0.90) hasCredential. AP#798 'Publishing anonymous content without authorship signals.'"
+    },
+    "E1_perplexitybot_allowed": {
+      "category": "aeo_discovery",
+      "rules": [
+        1479,
+        1487
+      ],
+      "anti_patterns": [
+        802,
+        808
+      ],
+      "notes": "Rules 1479/1487 (both 0.99) 'Allow PerplexityBot.' AP#802 'Blocking PerplexityBot' (high)."
+    },
+    "E3_googlebot_allowed": {
+      "category": "aeo_discovery",
+      "rules": [
+        1442,
+        1440
+      ],
+      "anti_patterns": [
+        785
+      ],
+      "notes": "Rule 1442 (0.98) AI Overviews crawlability. Rule 1440 (0.99) AI Overviews indexing. AP#785 'Blocking Googlebot.'"
+    },
+    "E4_no_nosnippet_noarchive": {
+      "category": "aeo_discovery",
+      "rules": [
+        1441,
+        1464,
+        1465,
+        1466,
+        1467,
+        1470,
+        1424
+      ],
+      "anti_patterns": [
+        770,
+        786,
+        793,
+        794,
+        766,
+        767
+      ],
+      "notes": "Rule 1424 (Bing, 0.98) 'NOARCHIVE blocks Copilot citation.'"
+    },
+    "E5_content_in_raw_html": {
+      "category": "aeo_discovery",
+      "rules": [
+        1481,
+        1419,
+        1444,
+        1488,
+        2015,
+        1426
+      ],
+      "anti_patterns": [
+        325,
+        804,
+        809
+      ],
+      "notes": "Rule 2015 (amsive.com, 0.97) 'AI Crawler JavaScript Avoidance Rule.' Rule 1426 (Bing, 0.97) 'JavaScript-Only Content Excluded from Bing Index.'"
+    },
+    "E6_content_not_behind_accordions": {
+      "category": "aeo_discovery",
+      "rules": [
+        1451
+      ],
+      "anti_patterns": [
+        768,
+        783
+      ],
+      "notes": "Rule 1451 (0.93) 'Avoid hiding content behind interactive elements.' AP#768 (high). AP#783 (high)."
+    },
+    "E13_ccbot_llm_training_access": {
+      "category": "aeo_discovery",
+      "rules": [
+        2016
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 2016 (amsive.com, 0.95) 'CCBot (Common Crawl) Access for LLM Training Recognition.' CCBot affects training-time brand recognition."
+    },
+    "F1_first_paragraph_answers_query": {
+      "category": "aeo_extraction",
+      "rules": [
+        1448,
+        1471,
+        1472
+      ],
+      "anti_patterns": [
+        3,
+        774,
+        797,
+        4698
+      ],
+      "notes": "Rule 1448 (Google, 0.95) 'Answer-first structure for AI Overview citation.' Rule 1471 (Perplexity, 0.97) 'Lead with Direct Answer.' Rule 1472 (Perplexity, 0.97) 'Use Specific Verifiable Facts.' AP#4698 (Backlinko, high) 'Burying the Answer.'"
+    },
+    "F3_faq_section": {
+      "category": "aeo_extraction",
+      "rules": [
+        1477,
+        1500,
+        1600,
+        1606
+      ],
+      "anti_patterns": [
+        816,
+        817
+      ],
+      "notes": "Rule 1477 (0.93) 'Add JSON-LD FAQ schema and semantic HTML5.' Rule 1500 (0.93) 'Write self-contained FAQ answers.'"
+    },
+    "F4_faq_semantic_markup": {
+      "category": "aeo_extraction",
+      "rules": [
+        1495,
+        1496
+      ],
+      "anti_patterns": [
+        813,
+        876
+      ],
+      "notes": "Rule 1495 (0.98) 'FAQPage requires visible content.' Rule 1496 (0.98) 'Markup text must match visible content.'"
+    },
+    "F6_headings_as_questions": {
+      "category": "aeo_extraction",
+      "rules": [],
+      "anti_patterns": [
+        773,
+        4714
+      ],
+      "notes": "AP#4714 (Backlinko, high) 'Neglecting LLM-Friendly Formatting.'"
+    },
+    "F7_named_entities_density": {
+      "category": "aeo_extraction",
+      "rules": [],
+      "anti_patterns": [
+        2,
+        797,
+        4714
+      ],
+      "notes": "AP#2 'Orphaned entity mentions' (high, entity). AP#4714 (Backlinko, high) 'Neglecting LLM-Friendly Formatting.'"
+    },
+    "F8_specific_facts": {
+      "category": "aeo_extraction",
+      "rules": [
+        1420
+      ],
+      "anti_patterns": [
+        775,
+        797
+      ],
+      "notes": "Rule 1420 (0.94) 'Avoid unverifiable promotional language in AI-targeted content.'"
+    },
+    "F11_self_contained_answer_units": {
+      "category": "aeo_extraction",
+      "rules": [
+        1500
+      ],
+      "anti_patterns": [
+        777,
+        805,
+        4602,
+        4623
+      ],
+      "notes": "Rule 1500 (0.93) 'Write self-contained FAQ answers.' AP#4602 (Backlinko, high) 'Context-Dependent Sections.' AP#4623 (Backlinko, high) 'Human-Only Structure.'"
+    },
+    "F12_tables_lists": {
+      "category": "aeo_extraction",
+      "rules": [
+        1450,
+        1434
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1450 (0.90) 'Structured content formats for AI grounding.' Rule 1434 (0.92) 'AI Mode comparative content optimisation.'"
+    },
+    "G_aeo_trust_ymyl_credibility": {
+      "category": "aeo_trust",
+      "rules": [],
+      "anti_patterns": [
+        1064
+      ],
+      "notes": "AP#1064 (amsive.com, high risk) 'Failing to prioritize credibility and accuracy for medical/high-trust query categories.'"
+    },
+    "misc_thin_content_no_named_experts": {
+      "category": "aeo_trust",
+      "rules": [],
+      "anti_patterns": [
+        1328
+      ],
+      "notes": "AP#1328 (almcorp.com, high) 'Thin content composed primarily of basic definitions or summaries.'"
+    },
+    "misc_brand_without_schema": {
+      "category": "entity",
+      "rules": [],
+      "anti_patterns": [
+        4756
+      ],
+      "notes": "AP#4756 (Backlinko, medium) 'Relying Solely on Brand Building Without Schema Markup for Entity Recognition.'"
+    },
+    "misc_conflicting_brand_signals": {
+      "category": "entity",
+      "rules": [],
+      "anti_patterns": [
+        4509
+      ],
+      "notes": "AP#4509 (Search Engine Land, high) 'Conflicting brand/entity signals across platforms and sources.'"
+    },
+    "A2_title_tag": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Basic HTML check. No specific Sieve brain entries — finding stands on static-rules alone."
+    },
+    "A3_meta_description": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Meta description is not a ranking signal (confirmed by Google). No brain entries."
+    },
+    "A6_h1_tag": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Basic HTML structure check. No brain entries."
+    },
+    "A7_h1_keyword": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [
+        773
+      ],
+      "notes": "AP#773 'Using generic or vague heading labels that don't reflect block content' (medium)."
+    },
+    "A8_lang_attribute": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Minor signal — no specific brain entries; static rule covers this."
+    },
+    "B1_ttfb": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Knowledge model covers TTFB importance for AI crawlers. No specific Sieve rules."
+    },
+    "B2_render_blocking_resources": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [
+        277
+      ],
+      "notes": "AP#277 'LCP exceeding 2.5s threshold' (high, seo) — render-blocking resources contribute to LCP failure."
+    },
+    "B3_modern_image_formats": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [
+        277
+      ],
+      "notes": "AP#277 'LCP exceeding 2.5s threshold' (high) — legacy image formats inflate page weight and harm LCP."
+    },
+    "B4_lazy_loading_below_fold": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [
+        277
+      ],
+      "notes": "AP#277 'LCP exceeding 2.5s threshold' (high) — eager loading of below-fold images delays LCP."
+    },
+    "B5_no_large_inline_blocks": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [
+        277
+      ],
+      "notes": "AP#277 'LCP exceeding 2.5s threshold' (high) — large inline CSS/JS blocks HTML parsing and degrades LCP."
+    },
+    "B6_dom_depth": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Knowledge model calibration. No direct brain entry."
+    },
+    "B7_compression": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Knowledge model calibration. No direct brain entry."
+    },
+    "B8_cache_control": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Knowledge model calibration. No direct brain entry."
+    },
+    "B9_no_mixed_content": {
+      "category": "technical_seo",
+      "rules": [
+        1489
+      ],
+      "anti_patterns": [
+        812
+      ],
+      "notes": "Rule 1489 (0.95) 'Enforce HTTPS across entire domain for AI citation trust.' AP#812 'Operating key pages without HTTPS.' Mixed content undermines HTTPS trust."
+    },
+    "B11_image_dimensions": {
+      "category": "technical_seo",
+      "rules": [],
+      "anti_patterns": [
+        277
+      ],
+      "notes": "AP#277 'LCP exceeding 2.5s' (high) — missing dimensions cause CLS which degrades perceived LCP."
+    },
+    "C4_descriptive_anchor_text": {
+      "category": "on_page_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Standard SEO best practice. No specific brain entries — static rule covers this."
+    },
+    "C5_alt_text": {
+      "category": "on_page_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Accessibility/SEO best practice. No brain entries."
+    },
+    "C7_keyword_stuffing": {
+      "category": "on_page_seo",
+      "rules": [
+        1420
+      ],
+      "anti_patterns": [
+        775,
+        797
+      ],
+      "notes": "Rule 1420 (0.94) 'Avoid unverifiable promotional language in AI-targeted content.' AP#775 'Vague promotional language that cannot be grounded.' AP#797 'Vague marketing language' (high). GEO research confirms keyword stuffing has NEGATIVE visibility impact."
+    },
+    "C9_clean_url_structure": {
+      "category": "on_page_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Standard HTML/URL hygiene check. No brain entries."
+    },
+    "C10_open_graph_tags": {
+      "category": "on_page_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Standard social meta check. No brain entries."
+    },
+    "C11_twitter_card_tags": {
+      "category": "on_page_seo",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Standard social meta check. No brain entries."
+    },
+    "C14_no_broken_external_links": {
+      "category": "on_page_seo",
+      "rules": [
+        1478
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1478 (0.92) 'Cite primary authoritative sources inline for AI trust signals.' Broken citations undermine this signal."
+    },
+    "D2_context_schema_org": {
+      "category": "schema",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Structural JSON-LD validity check. No brain entry."
+    },
+    "D4_id_fragment": {
+      "category": "schema",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Structural JSON-LD validity check. No brain entry."
+    },
+    "D8_organization_website_schema": {
+      "category": "schema",
+      "rules": [
+        1668
+      ],
+      "anti_patterns": [
+        959
+      ],
+      "notes": "Rule 1668 (0.98) 'Organization must include name and URL.' AP#959 'Omitting required url property from schema entities.'"
+    },
+    "D10_imageobject": {
+      "category": "schema",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Schema.org structural check. No specific brain entry."
+    },
+    "D13_speakable": {
+      "category": "schema",
+      "rules": [
+        1746,
+        1747,
+        1748
+      ],
+      "anti_patterns": [
+        945,
+        946,
+        829,
+        830,
+        831
+      ],
+      "notes": "Rule 1746 (0.95) 'SpeakableSpecification Requires CSS Selector or XPath.' Rule 1747 (0.94) 'Target Concise Factual Sections for Speakable Markup.' Rule 1748 (0.94) 'Avoid Marking Entire Page Body as Speakable.' AP#945 'Marking entire page body as speakable.' AP#946 'Non-informational elements as speakable.' AP#829 'Visual-dependent content as speakable.' AP#830 'Hidden/dynamically loaded content in speakable selectors.' AP#831 'Unsupported targeting mechanisms.'"
+    },
+    "E2_bingpreview_allowed": {
+      "category": "aeo_discovery",
+      "rules": [
+        1480,
+        1487
+      ],
+      "anti_patterns": [
+        803,
+        808
+      ],
+      "notes": "Rule 1480 (Perplexity, 0.98) 'Allow BingPreview as prerequisite for Perplexity inclusion.' Rule 1487 (0.99) 'Allow PerplexityBot and BingPreview in robots.txt.' AP#803 'Blocking BingPreview' (high). AP#808 'Blocking PerplexityBot or BingPreview' (high)."
+    },
+    "E7_indexnow": {
+      "category": "aeo_discovery",
+      "rules": [
+        1411,
+        1429
+      ],
+      "anti_patterns": [
+        763,
+        765
+      ],
+      "notes": "Rule 1411 (Bing, 0.95) 'IndexNow Submission for Fresh Content AI Citation.' Rule 1429 (Bing, 0.91) 'IndexNow Reduces Citation Lag for Updated Content.' AP#763 'Waiting for standard crawl cycles instead of submitting IndexNow' (high). AP#765 'Excessive repeated pings' (medium)."
+    },
+    "E8_page_in_sitemap": {
+      "category": "aeo_discovery",
+      "rules": [
+        1482
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1482 (Perplexity, 0.90) 'Submit sitemaps with accurate lastmod values to prioritise Perplexity crawling.'"
+    },
+    "E9_bing_webmaster": {
+      "category": "aeo_discovery",
+      "rules": [
+        1425
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1425 (Bing, 0.98) 'Bing Index Is Prerequisite for AI Citation.'"
+    },
+    "E10_claudebot_chatgpt_applebot": {
+      "category": "aeo_discovery",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Knowledge model covers ChatGPT-User ignoring robots.txt (2025 behaviour). No specific Sieve rules — static rule covers this."
+    },
+    "E11_no_paywall_login": {
+      "category": "aeo_discovery",
+      "rules": [],
+      "anti_patterns": [
+        810
+      ],
+      "notes": "AP#810 'Placing Primary Informational Content Behind Authentication or Login Gates' (high). AI crawlers cannot authenticate."
+    },
+    "E12_no_noarchive": {
+      "category": "aeo_discovery",
+      "rules": [
+        1424
+      ],
+      "anti_patterns": [
+        766,
+        767
+      ],
+      "notes": "Rule 1424 (Bing, 0.98) 'NOARCHIVE Blocks Copilot Citation.' AP#766 'Applying NOARCHIVE to Copilot-targeted content' (high). AP#767 'Applying NOCACHE to Copilot content' (high)."
+    },
+    "F2_quick_answer_block": {
+      "category": "aeo_extraction",
+      "rules": [
+        1448,
+        1450
+      ],
+      "anti_patterns": [
+        774,
+        777
+      ],
+      "notes": "Rule 1448 (Google, 0.95) 'Answer-first structure for AI Overview citation.' Rule 1450 (0.90) 'Structured content formats for AI grounding.' AP#774 'Burying key answers after lengthy preamble.' AP#777 'Publishing unbroken walls of text' (medium)."
+    },
+    "F5_faq_natural_language": {
+      "category": "aeo_extraction",
+      "rules": [
+        1501,
+        1601
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1501 (0.91) 'Align FAQ Question Phrasing with Actual User Query Patterns.' Rule 1601 (Schema.org, 0.95) 'FAQPage Question name Must Be Complete Sentence.'"
+    },
+    "F9_definition_first_writing": {
+      "category": "aeo_extraction",
+      "rules": [
+        1448
+      ],
+      "anti_patterns": [
+        3
+      ],
+      "notes": "Rule 1448 (Google, 0.95) 'Answer-first structure for AI Overview citation.' AP#3 'AI Answer Evasion' (high)."
+    },
+    "F10_summary_tldr": {
+      "category": "aeo_extraction",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "No specific brain entries. Static rule covers TL;DR/summary at end."
+    },
+    "G1_author_byline": {
+      "category": "aeo_trust",
+      "rules": [
+        1475
+      ],
+      "anti_patterns": [
+        798
+      ],
+      "notes": "Rule 1475 (0.92) 'Associate Content with Named Credentialed Author to Boost Citation Likelihood.' AP#798 'Publishing anonymous content without authorship signals' (medium)."
+    },
+    "G2_author_schema_credentials": {
+      "category": "aeo_trust",
+      "rules": [
+        1676,
+        1678,
+        1679
+      ],
+      "anti_patterns": [
+        798
+      ],
+      "notes": "Rule 1676 (Schema.org, 0.98) 'Person Author Property for E-E-A-T Signal.' Rule 1678 (0.92) 'Person Affiliation and WorksFor for Authority Signals.' Rule 1679 (0.90) 'Person hasCredential for Expertise Documentation.' AP#798 anonymous content (medium)."
+    },
+    "G3_outbound_citations": {
+      "category": "aeo_trust",
+      "rules": [
+        1478
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1478 (0.92) 'Cite Primary Authoritative Sources Inline for AI Trust Signals.'"
+    },
+    "G4_publication_date": {
+      "category": "aeo_trust",
+      "rules": [
+        1474
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1474 (0.95) 'Signal Content Freshness with Visible Timestamps and Substantive Updates.'"
+    },
+    "G5_date_modified": {
+      "category": "aeo_trust",
+      "rules": [
+        1474
+      ],
+      "anti_patterns": [
+        799
+      ],
+      "notes": "Rule 1474 (0.95) freshness timestamps. AP#799 'Cosmetic timestamp updates without substantive content changes' (medium)."
+    },
+    "G6_organization_sameas": {
+      "category": "aeo_trust",
+      "rules": [
+        1668
+      ],
+      "anti_patterns": [
+        959
+      ],
+      "notes": "Rule 1668 (0.98) 'Organization Schema Must Include Name and URL.' AP#959 'Omitting required url property from schema entities.'"
+    },
+    "G7_privacy_terms": {
+      "category": "aeo_trust",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "Trust-signal heuristic. No specific brain entry — static rule covers this."
+    },
+    "G8_https_valid": {
+      "category": "aeo_trust",
+      "rules": [
+        1489
+      ],
+      "anti_patterns": [
+        812
+      ],
+      "notes": "Rule 1489 (0.95) 'Enforce HTTPS across entire domain for AI citation trust.' AP#812 'Operating key pages without HTTPS.'"
+    },
+    "G9_content_freshness_recency": {
+      "category": "aeo_trust",
+      "rules": [
+        1474
+      ],
+      "anti_patterns": [
+        799
+      ],
+      "notes": "Rule 1474 (0.95) 'Signal Content Freshness with Visible Timestamps.' AP#799 'Cosmetic timestamp updates without substantive changes' (medium)."
+    },
+    "H1_content_depth_vs_competitors": {
+      "category": "aeo_selection",
+      "rules": [
+        1453
+      ],
+      "anti_patterns": [
+        781,
+        800
+      ],
+      "notes": "Rule 1453 (0.92) 'Commodity Content Exclusion Risk.' AP#781 'Creating commodity content without unique insight' (high). AP#800 'Publishing thin content that only summarises existing information' (high)."
+    },
+    "H2_unique_data_research": {
+      "category": "aeo_selection",
+      "rules": [
+        1453
+      ],
+      "anti_patterns": [
+        781
+      ],
+      "notes": "Rule 1453 (0.92) 'Commodity Content Exclusion Risk.' AP#781 'Creating commodity content without unique insight' (high)."
+    },
+    "H3_faq_coverage_vs_competitors": {
+      "category": "aeo_selection",
+      "rules": [
+        1477,
+        1500
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1477 (0.93) 'Add JSON-LD FAQ Schema and Semantic HTML5 to Aid AI Parsing.' Rule 1500 (0.93) 'Write Self-Contained FAQ Answers for AI Citation Eligibility.'"
+    },
+    "H4_schema_completeness_vs_competitors": {
+      "category": "aeo_selection",
+      "rules": [
+        3
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 3 (0.90) 'Schema Markup Coverage Rule.' Schema completeness vs competitors is a comparative selection signal."
+    },
+    "H5_fresher_than_competitors": {
+      "category": "aeo_selection",
+      "rules": [
+        1474
+      ],
+      "anti_patterns": [
+        799
+      ],
+      "notes": "Rule 1474 (0.95) 'Signal Content Freshness with Visible Timestamps and Substantive Updates.' AP#799 'Cosmetic timestamp updates without substantive content changes' (medium)."
+    },
+    "H6_eeat_signals_vs_competitors": {
+      "category": "aeo_selection",
+      "rules": [
+        1456,
+        1475,
+        1676
+      ],
+      "anti_patterns": [
+        798
+      ],
+      "notes": "Rule 1456 (Google, 0.98) 'AI Content Must Meet E-E-A-T Standards Regardless of Production Method.' Rule 1475 (0.92) 'Associate Content with Named Credentialed Author.' Rule 1676 (Schema.org, 0.98) 'Person Author Property for E-E-A-T Signal.' AP#798 anonymous content."
+    },
+    "H7_appears_in_ai_overview": {
+      "category": "aeo_selection",
+      "rules": [
+        1446
+      ],
+      "anti_patterns": [],
+      "notes": "Rule 1446 (0.95) 'AI Overviews Appearance Cannot Be Guaranteed.' AI Overview presence is observational, not deterministic."
+    },
+    "H8_query_intent_match": {
+      "category": "aeo_selection",
+      "rules": [
+        1448
+      ],
+      "anti_patterns": [
+        805
+      ],
+      "notes": "Rule 1448 (Google, 0.95) 'Answer-First Structure for AI Overview Citation.' AP#805 'Creating multi-intent pages that mix definitions, tutorials, and promotional content' (medium)."
+    },
+    "I1_brand_in_category_queries": {
+      "category": "geo",
+      "rules": [
+        564
+      ],
+      "anti_patterns": [
+        807,
+        4310
+      ],
+      "notes": "Rule 564 (Google, 0.95) 'Business Profile Claim Required for Maps/Knowledge Panel Visibility.' AP#807 'Prioritising backlink quantity over brand authority for AI citation visibility' (medium). AP#4310 (Backlinko, high) 'Sparse or Outdated Off-Site Brand Mentions' — brands with few third-party mentions are invisible to LLMs at training time."
+    },
+    "I2_knowledge_panel_entity_card": {
+      "category": "geo",
+      "rules": [
+        564
+      ],
+      "anti_patterns": [
+        4310
+      ],
+      "notes": "Rule 564 (Google, 0.95) 'Business Profile Claim Required for Maps/Knowledge Panel Visibility' — direct mapping to knowledge panel check. AP#4310 (Backlinko, high) 'Sparse or Outdated Off-Site Brand Mentions.'"
+    },
+    "I3_ai_description_matches_positioning": {
+      "category": "geo",
+      "rules": [
+        564
+      ],
+      "anti_patterns": [
+        807,
+        4310
+      ],
+      "notes": "Rule 564 (Google, 0.95) 'Business Profile Claim Required for Maps/Knowledge Panel Visibility.' AP#807 'Prioritising backlink quantity over brand authority for AI citation visibility' (medium). AP#4310 (Backlinko, high) 'Sparse or Outdated Off-Site Brand Mentions' — brands with few third-party mentions are invisible to LLMs at training time."
+    },
+    "I4_no_outdated_ai_info": {
+      "category": "geo",
+      "rules": [
+        1474
+      ],
+      "anti_patterns": [
+        799,
+        4310
+      ],
+      "notes": "Rule 1474 (0.95) 'Signal Content Freshness with Visible Timestamps.' AP#799 'Cosmetic timestamp updates without substantive content changes' (medium). AP#4310 (Backlinko, high) 'Sparse or Outdated Off-Site Brand Mentions' — outdated off-site references propagate stale info to LLMs."
+    },
+    "I5_brand_sentiment": {
+      "category": "geo",
+      "rules": [
+        564
+      ],
+      "anti_patterns": [
+        807,
+        4310
+      ],
+      "notes": "Rule 564 (Google, 0.95) 'Business Profile Claim Required for Maps/Knowledge Panel Visibility.' AP#807 'Prioritising backlink quantity over brand authority for AI citation visibility' (medium). AP#4310 (Backlinko, high) 'Sparse or Outdated Off-Site Brand Mentions' — brands with few third-party mentions are invisible to LLMs at training time."
+    },
+    "I6_brand_recommended_over_competitors": {
+      "category": "geo",
+      "rules": [
+        1453
+      ],
+      "anti_patterns": [
+        781,
+        4310
+      ],
+      "notes": "Rule 1453 (0.92) 'Commodity Content Exclusion Risk.' AP#781 'Creating commodity content without unique insight' (high). AP#4310 (Backlinko, high) 'Sparse or Outdated Off-Site Brand Mentions.'"
+    },
+    "I7_consistent_entity_data": {
+      "category": "geo",
+      "rules": [
+        1668
+      ],
+      "anti_patterns": [
+        4509,
+        4310
+      ],
+      "notes": "Rule 1668 (Schema.org, 0.98) 'Organization Schema Must Include Name and URL.' AP#4509 (Search Engine Land, high) 'Conflicting brand/entity signals across platforms and sources.' AP#4310 (Backlinko, high) 'Sparse or Outdated Off-Site Brand Mentions.'"
+    },
+    "I8_sameas_authoritative_profiles": {
+      "category": "geo",
+      "rules": [
+        1668
+      ],
+      "anti_patterns": [
+        959
+      ],
+      "notes": "Rule 1668 (Schema.org, 0.98) 'Organization Schema Must Include Name and URL.' AP#959 'Omitting Required url Property from Schema.org Entities' — sameAs URLs are part of Organization linkage."
+    },
+    "J1_organization_name_consistent": {
+      "category": "entity",
+      "rules": [
+        1668
+      ],
+      "anti_patterns": [
+        2
+      ],
+      "notes": "Rule 1668 (Schema.org, 0.98) 'Organization Schema Must Include Name and URL.' AP#2 'Orphaned entity mentions' (high, entity)."
+    },
+    "J2_logo_consistent": {
+      "category": "entity",
+      "rules": [],
+      "anti_patterns": [],
+      "notes": "No specific brain entries. Static rule covers logo consistency across schema and on-page references."
+    },
+    "J3_url_domain_consistent": {
+      "category": "entity",
+      "rules": [],
+      "anti_patterns": [
+        264
+      ],
+      "notes": "AP#264 'Specifying Conflicting Canonical URLs Across Different Methods' (high, seo)."
+    },
+    "J4_sameas_resolve": {
+      "category": "entity",
+      "rules": [
+        1668
+      ],
+      "anti_patterns": [
+        959
+      ],
+      "notes": "Rule 1668 (0.98) 'Organization Schema Must Include Name and URL.' AP#959 'Omitting Required url Property from Schema.org Entities.'"
+    },
+    "D14_hreflang_coverage": {
+      "category": "technical_seo",
+      "rules": [
+        1280,
+        920,
+        1281
+      ],
+      "anti_patterns": [
+        678,
+        379
+      ],
+      "notes": "Rule #1280 (Google, 0.97) 'Indicate hreflang for multi-language or multi-region page variants.' Rule #920 (Google, 0.95) 'Hreflang Annotation Requirement for Multilingual/Multi-Regional Sites.' Rule #1281 (Google, 0.96) 'Include self-referencing hreflang link on every page variant.' AP#678 (Google, high) 'Missing Self-Referencing hreflang Link on Page Variants.' AP#379 (Google, high) 'Incorrect hreflang annotations causing wrong canonical selection.'"
+    }
+  },
+  "source_tiers": {
+    "tier_1_primary": {
+      "icon": "🥇",
+      "orgs": [
+        "Google",
+        "Schema.org",
+        "Perplexity",
+        "Bing",
+        "Microsoft",
+        "W3C",
+        "Apple (developer.apple.com)"
+      ],
+      "framing": "Per [org]'s official documentation"
+    },
+    "tier_2_research": {
+      "icon": "🥈",
+      "orgs": [
+        "Backlinko",
+        "Ahrefs",
+        "Semrush",
+        "Princeton/arXiv",
+        "Vercel",
+        "BrightEdge"
+      ],
+      "framing": "Per [org]'s research study"
+    },
+    "tier_3_industry": {
+      "icon": "🥉",
+      "orgs": [
+        "Search Engine Land",
+        "Search Engine Journal",
+        "Moz",
+        "HubSpot"
+      ],
+      "framing": "Per industry analysis at [org]"
+    },
+    "tier_4_specialized": {
+      "icon": "📎",
+      "orgs": [
+        "amsive.com",
+        "almcorp.com",
+        "cxl.com",
+        "seerinteractive.com",
+        "Y Combinator",
+        "apptweak"
+      ],
+      "framing": "According to [org]"
+    }
+  },
+  "truth_badges": {
+    "HARD_EVIDENCE": "Direct observable fact from curl response or page HTML (e.g., HTTP status code, presence/absence of a tag, exact character count).",
+    "MEASURED": "Quantitative value from a deterministic measurement (e.g., TTFB median, visible word count, schema entity count).",
+    "STATIC_RULE": "Pass/fail against a pre-defined criterion from static-rules.md. The rule doesn't require brain lookup.",
+    "COMPARATIVE": "Finding based on comparison against crawled competitors (e.g., 'competitor has 10 FAQs, you have 0').",
+    "HEURISTIC": "Directional assessment that is likely but not provably correct (e.g., 'H1 doesn't describe brand value prop').",
+    "MODEL_JUDGMENT": "LLM-authored assessment of subjective quality (e.g., 'content tone inconsistent with category'). Explicitly softer evidence."
+  }
+}

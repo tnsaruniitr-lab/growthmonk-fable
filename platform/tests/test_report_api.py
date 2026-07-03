@@ -122,7 +122,8 @@ def test_render_structure_and_grouping():
     assert "<script" not in html_out.lower()
     # header numbers
     assert "example.com" in html_out
-    assert "B+" in html_out and "81.3" in html_out
+    # display scores are rounded for the client artifact (81.3 -> 81)
+    assert "B+" in html_out and ">81<" in html_out
     # fix_type group headings, page_html before schema
     assert html_out.index("Page HTML fixes (2)") < html_out.index("Schema markup fixes (1)")
     # badge chips + failures sort before passes inside a group

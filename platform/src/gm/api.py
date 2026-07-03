@@ -123,7 +123,28 @@ def share_report(token: str):
             or {}
         )
         conn.rollback()  # read-only work; release the transaction
-    return HTMLResponse(report.render_audit_html(audit, findings, site), headers=SHARE_HEADERS)
+    if audit.get("gate_state") == "group_rollup":
+        html = report.render_group_html(audit, site, checks_meta=_checks_meta())
+    else:
+        html = report.render_audit_html(audit, findings, site, checks_meta=_checks_meta())
+    return HTMLResponse(html, headers=SHARE_HEADERS)
+
+
+_CHECKS_META: dict | None = None
+
+
+def _checks_meta() -> dict | None:
+    """Registry check metadata (names/severity) for report rendering; cached,
+    and None when the registry data isn't present (report degrades to ids)."""
+    global _CHECKS_META
+    if _CHECKS_META is None:
+        try:
+            from gm.audit.registry import load_registry
+
+            _CHECKS_META = load_registry().checks
+        except Exception:
+            _CHECKS_META = {}
+    return _CHECKS_META or None
 
 
 # ---------------------------------------------------------------------------

@@ -188,12 +188,14 @@ def worker(
             samples_per_run=int(payload.get("samples_per_run", 3)),
         )
 
+    from gm.audit.group import handle_audit_group
     from gm.audit.pipeline import handle_audit_page
 
     handlers = {
         "sample_citations": sampler.handle_sample_citations,
         "scheduled_run": _handle_scheduled_run,
         "audit_page": handle_audit_page,
+        "audit_group": handle_audit_group,
     }
     stop = threading.Event()
     if with_scheduler:
@@ -242,6 +244,48 @@ def audit(
             )
             conn.commit()
             typer.echo(f"enqueued job {job_id} (audit_page {target})")
+
+
+@app.command("audit-group")
+def audit_group(
+    domain: str,
+    urls: str = typer.Option(..., help="Comma-separated location page URLs"),
+    now: bool = typer.Option(False, "--now", help="Run inline instead of enqueueing"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="FakeLlm classification (no spend)"),
+):
+    """Group autopsy: audit N location pages, roll up sitewide vs per-location fixes."""
+    url_list = [u.strip() for u in urls.split(",") if u.strip()]
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        if now:
+            from gm.audit.group import persist_group_summary, run_group_audit
+
+            if dry_run:
+                from gm.infra.llm import FakeLlm
+
+                llm = FakeLlm(["[]"])
+            else:
+                from gm.infra.llm import LlmClient
+
+                llm = LlmClient()
+            result = run_group_audit(
+                conn, org_id=org["id"], site_id=str(site["id"]), urls=url_list, llm=llm
+            )
+            group_id = persist_group_summary(
+                conn, org_id=org["id"], site_id=str(site["id"]), assembled=result
+            )
+            conn.commit()
+            typer.echo(f"group audit {group_id}: {len(url_list)} locations")
+        else:
+            job_id = jobs_mod.enqueue(
+                conn, type="audit_group", org_id=org["id"], site_id=str(site["id"]),
+                payload={"urls": url_list},
+                idempotency_key=f"group:{site['id']}:{dt.date.today().isoformat()}",
+            )
+            conn.commit()
+            typer.echo(f"enqueued job {job_id} (audit_group, {len(url_list)} urls)")
 
 
 @app.command()
