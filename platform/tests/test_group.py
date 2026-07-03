@@ -396,7 +396,9 @@ def planted_sitewide_responder(system: str, user: str) -> str:
     """Fail C-01 on loc1 + loc2 (the planted sitewide failure); pass the rest."""
     checks_block = user.split("EVIDENCE BUNDLE", 1)[0]
     ids = list(dict.fromkeys(re.findall(r'"check_id":"([A-J]-\d+)"', checks_block)))
-    on_planted_page = "/loc1" in user or "/loc2" in user
+    m = re.search(r"AUDITED PAGE: (\S+)", user)
+    audited = m.group(1) if m else ""
+    on_planted_page = audited.endswith("/loc1") or audited.endswith("/loc2")
     out = []
     for cid in ids:
         if cid == "C-01" and on_planted_page:

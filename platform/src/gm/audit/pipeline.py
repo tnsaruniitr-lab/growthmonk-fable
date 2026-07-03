@@ -119,6 +119,8 @@ Rules:
 CATEGORY_PROMPT_TEMPLATE = """\
 Category {letter} — {category_name}. Classify every check below.
 
+AUDITED PAGE: {audited_url}
+
 CHECKS (criteria are authoritative):
 {checks_json}
 
@@ -167,8 +169,12 @@ def checks_by_category(registry: Registry) -> dict[str, list[dict]]:
     return grouped
 
 
-def build_category_prompt(letter: str, checks: list[dict], evidence_json: str) -> str:
-    """User message for one category call: check criteria + evidence bundle."""
+def build_category_prompt(
+    letter: str, checks: list[dict], evidence_json: str, audited_url: str = ""
+) -> str:
+    """User message for one category call: check criteria + evidence bundle.
+    The audited URL is stated explicitly so the classifier never has to infer
+    which page (of several mentioned in evidence, e.g. sitemap URLs) is under audit."""
     criteria = [
         {k: c.get(k) for k in ("check_id", "name", "description", "criteria", "applies_to")}
         for c in checks
@@ -176,6 +182,7 @@ def build_category_prompt(letter: str, checks: list[dict], evidence_json: str) -
     return CATEGORY_PROMPT_TEMPLATE.format(
         letter=letter,
         category_name=str(checks[0].get("category_name") or letter),
+        audited_url=audited_url,
         checks_json=compact_json(criteria, CHECKS_JSON_MAX_CHARS),
         evidence_json=evidence_json,
         n=len(checks),
@@ -264,6 +271,7 @@ def classify_checks(
     evidence: dict,
     budget: CallBudget,
     on_cost: Callable[[Any], None] | None = None,
+    audited_url: str = "",
 ) -> tuple[dict[str, dict], list[str], float]:
     """Stage 4: one batched LLM call per category, shared CallBudget.
 
@@ -283,7 +291,7 @@ def classify_checks(
         if cap_hit:
             status_map.update({c["check_id"]: _fallback("cost cap reached") for c in checks})
             continue
-        prompt = build_category_prompt(letter, checks, evidence_json)
+        prompt = build_category_prompt(letter, checks, evidence_json, audited_url)
         try:
             result = llm.complete(system=CLASSIFIER_SYSTEM, user=prompt, budget=budget)
         except CostCapExceeded:
@@ -525,7 +533,9 @@ def _run_stages(conn, *, audit_id, org_id, url, llm, reg: Registry,
             org_id=org_id, job_id=job_id, units=getattr(result, "usage", None) or {},
         )
 
-    status_map, notes, total_cost = classify_checks(llm, reg, evidence, budget, on_cost)
+    status_map, notes, total_cost = classify_checks(
+        llm, reg, evidence, budget, on_cost, audited_url=url
+    )
 
     # Stage 5: deterministic grading + persistence.
     findings = [

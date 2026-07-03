@@ -302,11 +302,14 @@ def share(audit_id: str, ttl_days: int = typer.Option(60)):
 
 
 @app.command()
-def serve(host: str = "0.0.0.0", port: int = 8080):
+def serve(host: str = "0.0.0.0", port: int = typer.Option(None, help="Default: $PORT or 8080")):
     """Run the API (share pages + admin)."""
+    import os
+
     import uvicorn
 
-    uvicorn.run("gm.api:app", host=host, port=port)
+    resolved = port if port is not None else int(os.environ.get("PORT", "8080"))
+    uvicorn.run("gm.api:app", host=host, port=resolved)
 
 
 @app.command()
