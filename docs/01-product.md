@@ -31,6 +31,14 @@ The market pre-named the purchase trigger (verified verbatim from the fresh craw
 | **Ad integrations (write)** — SKIP | Platform-absorbed trap (Meta Advantage+, Google AI Max forced migration; Marin is the corpse) | Not built. Ever, absent new evidence |
 | **Ad creative / Email / Social** — SKIP | Free floors and platform bundling everywhere; fresh-crawl "demand" partly astroturf | Not built |
 
+### 2.1 ROAS / paid-media stance (explicit)
+
+There is deliberately **no ROAS module** in this plan:
+- **Ad management / write access / creative: never built** — platform-absorbed (Meta Advantage+, Google AI Max forced migration Sept 2026–Feb 2027; Marin is the corpse).
+- **Ad-spend-leak read-only diagnostic: Phase E, manual, pull-based only** — offered inside open relationships if ≥2 clients ask unprompted; the AI-Max migration wave is the scheduled demand trigger. The artifact prices at $0 against free graders, so it is a relationship deepener, not a SKU.
+- **Receipts are denominated in organic/AI-search outcomes** — clicks, variance-windowed citation rates, booked consults — because that is the value the wedge creates and the claim we can defend.
+- **The gated path to ROAS-adjacent value, if clients pull:** read-only spend ingestion (Google Ads / Meta insights APIs) adding one blended **cost-per-booked-consult** line to the monthly receipt — an extension of the booked-lead proof layer (the CallRail-shaped terminus), never bid or budget management. Requires: ≥2 concierge clients asking + the WhatsApp card already live.
+
 ## 3. Target segment
 
 **PRIMARY (revenue spine): GCC multi-location med-spa / dental / aesthetic groups** — Dubai HQ, 3+ locations, one buyer covering N locations. AED 1,850/location autopsy → AED 4,500+/mo group concierge retainer. **Hard cap: 3–5 groups** (solo-operator fulfillment at ≤2h/day). This replaces the single-location Dubai siege.
