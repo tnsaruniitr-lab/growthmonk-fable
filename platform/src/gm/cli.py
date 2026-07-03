@@ -38,9 +38,12 @@ prompt_app = typer.Typer(help="Tracked prompt management", no_args_is_help=True)
 run_app = typer.Typer(help="Citation runs", no_args_is_help=True)
 schedule_app = typer.Typer(help="Recurring schedules", no_args_is_help=True)
 lever_app = typer.Typer(help="Per-domain lever log (Gate-1 requirement)", no_args_is_help=True)
+gsc_app = typer.Typer(help="Google Search Console connection + ingest", no_args_is_help=True)
+vault_app = typer.Typer(help="Credential vault", no_args_is_help=True)
 for name, sub in [
     ("db", db_app), ("org", org_app), ("site", site_app), ("prompt", prompt_app),
     ("run", run_app), ("schedule", schedule_app), ("lever", lever_app),
+    ("gsc", gsc_app), ("vault", vault_app),
 ]:
     app.add_typer(sub, name=name)
 
@@ -190,12 +193,18 @@ def worker(
 
     from gm.audit.group import handle_audit_group
     from gm.audit.pipeline import handle_audit_page
+    from gm.intel.detectors import handle_compute_queue
+    from gm.intel.gsc_ingest import handle_gsc_backfill, handle_gsc_daily, handle_gsc_initial
 
     handlers = {
         "sample_citations": sampler.handle_sample_citations,
         "scheduled_run": _handle_scheduled_run,
         "audit_page": handle_audit_page,
         "audit_group": handle_audit_group,
+        "gsc_initial": handle_gsc_initial,
+        "gsc_backfill": handle_gsc_backfill,
+        "gsc_daily": handle_gsc_daily,
+        "compute_queue": handle_compute_queue,
     }
     stop = threading.Event()
     if with_scheduler:
@@ -244,6 +253,113 @@ def audit(
             )
             conn.commit()
             typer.echo(f"enqueued job {job_id} (audit_page {target})")
+
+
+@vault_app.command("keygen")
+def vault_keygen():
+    """Generate the sealed-box keypair (run once; put keys in env per runbook)."""
+    from gm.connections.vault import generate_keypair
+
+    pub, priv = generate_keypair()
+    typer.echo(f"GM_VAULT_PUBLIC_KEY={pub}")
+    typer.echo(f"GM_VAULT_PRIVATE_KEY={priv}   # publisher/ingest workers ONLY; escrow a copy")
+
+
+@gsc_app.command("connect")
+def gsc_connect(
+    domain: str,
+    service_account: Path = typer.Option(..., help="Service-account JSON key file"),
+    property: str = typer.Option(..., help='GSC property, e.g. "sc-domain:example.com"'),
+):
+    """Store GSC credentials (sealed) and verify access with a 1-row query."""
+    import json as _json
+
+    from gm.connections.gsc import GscClient
+    from gm.connections.vault import store_connection
+
+    creds = _json.loads(service_account.read_text())
+    client = GscClient(creds, property)
+    client.query(
+        start_date=dt.date.today() - dt.timedelta(days=10),
+        end_date=dt.date.today() - dt.timedelta(days=3),
+        dimensions=["page"], row_limit=1,
+    )  # raises GscAuthError if the service account lacks property access
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        store_connection(
+            conn, org_id=org["id"], site_id=str(site["id"]), kind="gsc",
+            credentials=creds, meta={"property": property},
+        )
+        conn.commit()
+    typer.echo(f"connected + verified: {property}")
+
+
+@gsc_app.command("pull")
+def gsc_pull(domain: str):
+    """Start the two-phase ingest (provisional queue in minutes; backfill in background)."""
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        job_id = jobs_mod.enqueue(
+            conn, type="gsc_initial", org_id=org["id"], site_id=str(site["id"]),
+            idempotency_key=f"gsc_initial:{site['id']}:{dt.date.today().isoformat()}",
+        )
+        conn.commit()
+    typer.echo(f"enqueued job {job_id} (gsc_initial)")
+
+
+@gsc_app.command("status")
+def gsc_status(domain: str):
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        c = conn.execute(
+            "select status, last_ok_at, last_error, meta from connections"
+            " where site_id=%s and kind='gsc'", (site["id"],),
+        ).fetchone()
+        cov = conn.execute(
+            "select count(*) as days, count(*) filter (where final) as final_days,"
+            " min(date) as oldest, max(date) as newest"
+            " from gsc_ingest_log where site_id=%s", (site["id"],),
+        ).fetchone()
+    if not c:
+        typer.echo("no GSC connection — run: gm gsc connect")
+        raise typer.Exit(1)
+    typer.echo(f"connection: {c['status']}  property={c['meta'].get('property')}")
+    typer.echo(
+        f"history coverage: {cov['days']} day(s) ({cov['final_days']} final)"
+        f"  {cov['oldest'] or '—'} → {cov['newest'] or '—'}"
+    )
+
+
+@app.command()
+def queue(domain: str, kind: str = typer.Option(None, help="Filter by detector kind")):
+    """The operator queue: what to fix this week, ranked by clicks at stake."""
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        q = (
+            "select kind, target, at_stake, status, last_seen from queue_items"
+            " where site_id=%s and status='open'"
+        )
+        params: list = [site["id"]]
+        if kind:
+            q += " and kind=%s"
+            params.append(kind)
+        q += " order by coalesce((at_stake->>'est_clicks_gain')::float, 0) desc limit 30"
+        rows = conn.execute(q, params).fetchall()
+    if not rows:
+        typer.echo("queue empty — run gm gsc pull / wait for compute_queue")
+    for r in rows:
+        gain = r["at_stake"].get("est_clicks_gain")
+        basis = r["at_stake"].get("basis", "?")
+        tgt = r["target"].get("query") or r["target"].get("page") or ""
+        typer.echo(f"{r['kind']:18} +{gain or '?':>6} clicks/mo [{basis}]  {tgt[:70]}")
 
 
 @app.command("audit-group")
