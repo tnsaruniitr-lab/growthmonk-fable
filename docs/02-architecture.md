@@ -99,6 +99,7 @@ As drafted (GSC, DataForSEO primary, PSI/CrUX, WordPress, IndexNow, LLM gateway,
 - PSI: crawl schedules hash-spread across the week per site; PSI fetched only for audited/tracked pages; jittered cache TTL (6–8d); origin-level CrUX for the long tail.
 - Every port checks its `quota_ledger` pre-call.
 - **ContentEnginePort:** authed (shared-secret bearer, rotated; no public domain), stateless per-request, carries org/site context; **LLM budget tokens** — the gateway issues a per-job pre-authorized max spend; the TS engine reports per-call `cost_events` and cannot spend without a token (closes the "chokepoint that wasn't" hole; contract test: exhausted budget ⇒ draft job cannot spend).
+- **AdsPort (Phase D, read-only by construction):** Google Ads API via manager-account link + Meta Marketing API insights via BM analyst user — no write scopes requested anywhere, so a vault compromise cannot touch ad accounts. Daily `pull_ads_daily` job → `ads_daily(site_id, date, channel, campaign, spend, clicks, platform_conversions)` (same slice-replacement pattern as gsc_daily); `booked_leads(site_id, source[whatsapp|call|manual|booking_system], occurred_at, attribution jsonb)` fed by the WABA inbound webhook + operator log. Receipt lines computed deterministically from these two tables.
 
 ## 7. LLM gateway
 

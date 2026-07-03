@@ -31,13 +31,26 @@ The market pre-named the purchase trigger (verified verbatim from the fresh craw
 | **Ad integrations (write)** — SKIP | Platform-absorbed trap (Meta Advantage+, Google AI Max forced migration; Marin is the corpse) | Not built. Ever, absent new evidence |
 | **Ad creative / Email / Social** — SKIP | Free floors and platform bundling everywhere; fresh-crawl "demand" partly astroturf | Not built |
 
-### 2.1 ROAS / paid-media stance (explicit)
+### 2.1 Paid-media / ROAS stance (updated 2026-07-03, product decision)
 
-There is deliberately **no ROAS module** in this plan:
-- **Ad management / write access / creative: never built** — platform-absorbed (Meta Advantage+, Google AI Max forced migration Sept 2026–Feb 2027; Marin is the corpse).
-- **Ad-spend-leak read-only diagnostic: Phase E, manual, pull-based only** — offered inside open relationships if ≥2 clients ask unprompted; the AI-Max migration wave is the scheduled demand trigger. The artifact prices at $0 against free graders, so it is a relationship deepener, not a SKU.
-- **Receipts are denominated in organic/AI-search outcomes** — clicks, variance-windowed citation rates, booked consults — because that is the value the wedge creates and the claim we can defend.
-- **The gated path to ROAS-adjacent value, if clients pull:** read-only spend ingestion (Google Ads / Meta insights APIs) adding one blended **cost-per-booked-consult** line to the monthly receipt — an extension of the booked-lead proof layer (the CallRail-shaped terminus), never bid or budget management. Requires: ≥2 concierge clients asking + the WhatsApp card already live.
+The line the evidence draws is **measurement vs. management** — and the plan now commits to the measurement side:
+
+- **Paid-media measurement (read-only ROAS) — CORE, Phase D, committed.** Daily read-only ingestion of the client's own Google Ads + Meta spend/conversion data, feeding two receipt lines: **blended cost-per-booked-consult** and per-channel spend-vs-booked-lead trend (WhatsApp card + monthly receipt). This is an *extension of the reporting/attribution spine the research ranked #1* — the buyer's largest marketing line item cannot be absent from a receipt product. Concierge integration path requires **zero app review**: client links our Google Ads manager account read-only + adds a Meta Business Manager analyst user (same pattern as the GSC service account). Note: a client's own performance data via their accounts is exact — the "bucketed volumes" problem only affects Keyword Planner estimates without spend, which we don't use.
+- **Ad management / write access / bid or budget changes / creative: never built** — platform-absorbed (Meta Advantage+, Google AI Max forced migration Sept 2026–Feb 2027; Marin is the corpse). Unchanged.
+- **Ad-spend-leak *audit* as an artifact: Phase E, manual, pull-based only** — the artifact prices at $0 against free graders. Unchanged. But note: once read-only spend data is flowing (Phase D), the manual Phase-E autopsy becomes a half-day query on data we already hold, not a competence fork.
+- **Claim discipline still applies:** ROAS lines report the platforms' own conversion figures plus our booked-lead denominator, labeled as such — we never claim attribution precision the data can't support.
+
+### 2.2 Completeness additions (gap sweep, 2026-07-03)
+
+Three modules added after auditing the plan against a "complete growth stack" for the ICP:
+
+| Module | Role | Why it was missing / what it is |
+|---|---|---|
+| **Paid-media measurement (read-only ROAS)** | CORE, Phase D | See §2.1 |
+| **Booked-lead capture** | CORE dependency, Phase D | The attribution spine had a send channel (WhatsApp card) but no ingest: where booked consults come *from*. v1 = WhatsApp Business inbound webhook (click-to-chat attribution) + operator-logged bookings table; booking-platform integrations (Fresha/Zenoti-class) only on client pull. Without this, cost-per-booked-consult has no denominator |
+| **Local presence (GBP + listings + NAP + reviews)** | Check family, Phase B–D | Was implicit (entity-consistency checks, Gate-1 directory levers, Phase-D review scoring) — now an explicit registry check family with a fix class, because local presence + reviews are how LLMs pick local recommendations (AI-local-search 6%→45% in 12mo). Diagnostic + fix execution; never review-generation |
+
+**Still deliberately absent, verdicts stand:** email/SMS lifecycle (Klaviyo/GHL land), social scheduling (free floor at $0), ad creative (Meta gives it away), CRM/pipeline (GHL land), speed-to-lead/missed-call textback (GHL-absorbed; revisit only on client pull), landing-page builder (audit line items only), standalone reporting dashboard (do-not-build). A complete *stack* is not the goal — a complete *answer to the buyer's money questions* is: what should we fix, what did it cost, what did it book.
 
 ## 3. Target segment
 

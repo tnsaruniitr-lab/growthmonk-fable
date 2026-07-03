@@ -67,10 +67,12 @@ Operator constraint honored throughout: solo builder; fulfillment ≤2h/day once
 
 **Engineering deliverables:**
 1. **WhatsApp booked-lead trend card** via Meta Cloud API (GrowthMonk WABA, already proven): weekly card to the group buyer — booked-consult trend + one delta highlight + one next action. Template approval lead time — submit templates early Nov.
-2. Monthly receipt assembly job (site_deltas + citation panels + fix log) — auto-drafted, operator-approved before send.
-3. Proof Pack generator (**gated — build only if the Oct 15 gate passed**): white-label-themed autopsy + fix instructions + variance delta; org-level theming on share pages only.
-4. Reviews/reputation trust-signal check family added to `registry/` (diagnostic only — research CORE, this phase).
-5. Refusal log for the agency pitch loop (a table + admin view — the >50% DIY-refusal early-death tripwire needs data, not memory).
+2. **Booked-lead capture (the attribution denominator):** WhatsApp Business inbound webhook with click-to-chat source attribution + `booked_leads` operator-log table (admin quick-add). Booking-platform integrations only on client pull.
+3. **Paid-media measurement (read-only ROAS):** `AdsPort` — Google Ads (client links our manager account, read-only) + Meta Marketing API insights (Business Manager analyst user; no app review on the concierge path). Daily `ads_daily` pulls (spend, clicks, platform conversions per channel/campaign) → two receipt lines: blended cost-per-booked-consult + per-channel spend-vs-booked trend. Read scopes only; no write path exists in the codebase.
+4. Monthly receipt assembly job (site_deltas + citation panels + fix log + ROAS lines) — auto-drafted, operator-approved before send.
+5. Proof Pack generator (**gated — build only if the Oct 15 gate passed**): white-label-themed autopsy + fix instructions + variance delta; org-level theming on share pages only.
+6. **Local presence check family** in `registry/`: GBP completeness, listings/NAP consistency, review-signal scoring (diagnostic only — never review generation) + directory-listing fix class (already a Gate-1 lever).
+7. Refusal log for the agency pitch loop (a table + admin view — the >50% DIY-refusal early-death tripwire needs data, not memory).
 
 **Exit gates (GTM):** Jan 15 — ≥2 agencies PAID or white-label dies (GCC-concierge-only). Concierge kill: month-3 renewal <50% or one refund → freeze group sales.
 
