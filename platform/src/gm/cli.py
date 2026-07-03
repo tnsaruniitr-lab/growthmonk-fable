@@ -201,6 +201,8 @@ def worker(
     from gm.delivery.wordpress import handle_publish
     from gm.intel.detectors import handle_compute_queue
     from gm.intel.gsc_ingest import handle_gsc_backfill, handle_gsc_daily, handle_gsc_initial
+    from gm.intel.labs import handle_keyword_gap
+    from gm.intel.rank_tracker import handle_track_serps
 
     handlers = {
         "sample_citations": sampler.handle_sample_citations,
@@ -218,6 +220,8 @@ def worker(
         "verify_publish": handle_verify_publish,
         "compute_delta": handle_compute_delta,
         "assemble_receipt": handle_assemble_receipt,
+        "track_serps": handle_track_serps,
+        "keyword_gap": handle_keyword_gap,
     }
     stop = threading.Event()
     if with_scheduler:
@@ -515,6 +519,83 @@ def receipt(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html)
     typer.echo(f"receipt {rid}\n{out}")
+
+
+track_app = typer.Typer(help="Tracked queries (rank + AI Overview)", no_args_is_help=True)
+app.add_typer(track_app, name="track")
+
+
+@track_app.command("add")
+def track_add(domain: str, query: str, target_page: str = typer.Option(None)):
+    from gm.intel.rank_tracker import add_tracked_query
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        tid = add_tracked_query(conn, org["id"], str(site["id"]), query, target_page=target_page)
+        conn.commit()
+    typer.echo(tid)
+
+
+@track_app.command("run")
+def track_run(domain: str):
+    """Snapshot all tracked queries now (weekly schedule does this automatically)."""
+    from gm.intel.rank_tracker import track_site
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        result = track_site(conn, org_id=org["id"], site_id=str(site["id"]))
+        conn.commit()
+    typer.echo(result)
+
+
+@track_app.command("list")
+def track_list(domain: str):
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        rows = conn.execute(
+            "select tq.query_norm, rh.rank, rh.aio_present, rh.aio_cited, rh.checked_on"
+            " from tracked_queries tq left join lateral ("
+            "   select * from rank_history rh where rh.site_id=tq.site_id"
+            "   and rh.query_norm=tq.query_norm order by checked_on desc limit 1) rh on true"
+            " where tq.site_id=%s and tq.active order by tq.query_norm",
+            (site["id"],),
+        ).fetchall()
+    for r in rows:
+        rank = f"#{r['rank']}" if r["rank"] else "—"
+        aio = "AIO✓cited" if r["aio_cited"] else ("AIO present" if r["aio_present"] else "no AIO")
+        typer.echo(f"{rank:>5}  {aio:12}  {r['query_norm']}  ({r['checked_on'] or 'never'})")
+
+
+@site_app.command("set-competitors")
+def site_set_competitors(domain: str, competitors: str = typer.Option(..., help="comma-sep hosts")):
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        conn.execute("update sites set competitor_domains=%s where id=%s",
+                     ([c.strip() for c in competitors.split(",") if c.strip()], site["id"]))
+        conn.commit()
+    typer.echo("competitors set")
+
+
+@app.command()
+def gap(domain: str):
+    """Run the keyword-gap detector vs the site's tracked competitors."""
+    from gm.intel.labs import keyword_gap
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        result = keyword_gap(conn, org_id=org["id"], site_id=str(site["id"]))
+        conn.commit()
+    typer.echo(result)
 
 
 @app.command()
