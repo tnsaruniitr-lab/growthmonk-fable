@@ -50,7 +50,9 @@ def normalize_host(url: str) -> str:
     return host.removeprefix("www.")
 
 
-def detect(sample: EngineSample, domain_norm: str, brand_terms: list[str] | None = None) -> DetectResult:
+def detect(
+    sample: EngineSample, domain_norm: str, brand_terms: list[str] | None = None
+) -> DetectResult:
     """Citation = domain appears in cited_urls. Mention = domain or brand term in answer text."""
     target = normalize_host(domain_norm)
     cited_url = None

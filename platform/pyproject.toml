@@ -33,3 +33,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# typer's API takes Option/Argument calls as parameter defaults by design
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
