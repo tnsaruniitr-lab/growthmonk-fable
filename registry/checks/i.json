@@ -1,0 +1,224 @@
+[
+  {
+    "check_id": "I-01",
+    "check_version": 1,
+    "category": "I",
+    "category_name": "GEO",
+    "source_id": "I1",
+    "name": "Brand in Category Queries",
+    "dimension": "Presence",
+    "description": "Checks whether the brand name appears in web-search results for \"best [category]\" queries. Brand presence in category contexts is the foundation of generative engine visibility — if AI systems don't see the brand in category content, they can't recommend it.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "WebSearch \"best [category]\"",
+    "assessment_method": "Run WebSearch for category query. Check if brand name appears in any result title, description, or snippet.",
+    "badge": "model_judgment",
+    "criteria": {
+      "pass": "Brand name appears in WebSearch results for \"best [category]\" or \"[category] tools/apps\"",
+      "fail": "Brand not mentioned in any category search results"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "offpage_entity",
+    "fix_template": "OFF-PAGE WORK — get listed on review sites (G2, Product Hunt, Capterra), create \"best [category]\" content on your own blog, earn mentions in industry listicles.",
+    "sources": [
+      "GEO paper: brand presence in category contexts is the foundation of generative engine visibility. If AI systems don't see the brand in category content, they can't recommend it."
+    ],
+    "notes": "Requires runtime web-search results for category queries. Source category header labels all GEO checks directional model judgment."
+  },
+  {
+    "check_id": "I-02",
+    "check_version": 1,
+    "category": "I",
+    "category_name": "GEO",
+    "source_id": "I2",
+    "name": "Knowledge Panel/Entity Card",
+    "dimension": "Presence",
+    "description": "Checks whether searching the brand name produces a knowledge panel or entity card. Knowledge panel presence indicates Google recognizes the brand as an entity, which correlates with AI system awareness.",
+    "applies_to": ["all"],
+    "method": "measured",
+    "method_detail": "WebSearch brand name",
+    "assessment_method": "WebSearch for brand name. Check for structured information beyond organic links.",
+    "badge": "measured",
+    "criteria": {
+      "pass": "Searching brand name produces a knowledge panel, entity card, or structured brand information",
+      "fail": "No entity recognition — just regular organic results"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "offpage_entity",
+    "fix_template": "OFF-PAGE WORK — build structured entity presence: Wikipedia article (if notable), Wikidata entry, Google Business Profile, consistent NAP across directories.",
+    "sources": [
+      "Knowledge panel indicates Google recognizes the brand as an entity. Wikipedia/Wikidata presence strengthens this. Entity recognition by Google correlates with AI system awareness."
+    ],
+    "notes": "Requires runtime web-search results for the brand name."
+  },
+  {
+    "check_id": "I-03",
+    "check_version": 1,
+    "category": "I",
+    "category_name": "GEO",
+    "source_id": "I3",
+    "name": "AI Description Matches Positioning",
+    "dimension": "Accuracy",
+    "description": "Compares how search results and snippets describe the brand against the brand's own positioning on its website. When sources disagree, AI-synthesized brand descriptions become inaccurate or generic.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "WebSearch vs site description",
+    "assessment_method": "Compare WebSearch brand descriptions against homepage/about page brand statement.",
+    "badge": "model_judgment",
+    "criteria": {
+      "pass": "How search results/snippets describe the brand aligns with the brand's own positioning on its website",
+      "warn": "Partial alignment but some outdated or inaccurate framing",
+      "fail": "Search results describe the brand differently from how it describes itself, or brand has no consistent self-description"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "offpage_entity",
+    "fix_template": "Create one canonical brand sentence used identically across: homepage, about page, Organization schema description, social profiles, directory listings.",
+    "sources": [
+      "AI systems synthesize brand descriptions from multiple sources. If sources disagree, the AI description becomes inaccurate or generic."
+    ],
+    "notes": "Requires runtime web-search results for the brand name."
+  },
+  {
+    "check_id": "I-04",
+    "check_version": 1,
+    "category": "I",
+    "category_name": "GEO",
+    "source_id": "I4",
+    "name": "No Outdated/Incorrect AI Info",
+    "dimension": "Accuracy",
+    "description": "Cross-references search-result descriptions of the brand against current site content to detect outdated or wrong information. Outdated info in search sources propagates into AI-generated brand descriptions.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "WebSearch vs current site",
+    "assessment_method": "Cross-reference search result descriptions with current site content.",
+    "badge": "model_judgment",
+    "criteria": {
+      "pass": "Search results contain current, accurate information about the brand",
+      "warn": "Minor inaccuracies or outdated details",
+      "fail": "Search results contain significantly wrong information (old pricing, discontinued features, wrong category)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "offpage_entity",
+    "fix_template": "Update your own site content, then update third-party profiles, then request Google review of knowledge panel if applicable.",
+    "sources": [
+      "Outdated info in search results means AI systems will generate outdated brand descriptions. Freshness of ALL sources (not just your site) matters."
+    ],
+    "notes": "Requires runtime web-search results for the brand name."
+  },
+  {
+    "check_id": "I-05",
+    "check_version": 1,
+    "category": "I",
+    "category_name": "GEO",
+    "source_id": "I5",
+    "name": "Brand Sentiment Positive/Neutral",
+    "dimension": "Favorability",
+    "description": "Assesses the overall sentiment of search results for the brand name. AI systems reflect the web's consensus — negative review dominance translates to negative AI descriptions.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "WebSearch result sentiment",
+    "assessment_method": "WebSearch brand name + \"reviews\". Assess overall sentiment of results.",
+    "badge": "model_judgment",
+    "criteria": {
+      "pass": "Search results for brand name show positive or neutral sentiment (good reviews, positive press, favorable comparisons)",
+      "warn": "Mixed sentiment",
+      "fail": "Negative sentiment dominates (bad reviews, complaints, unfavorable comparisons)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "offpage_entity",
+    "fix_template": "OFF-PAGE WORK — review management strategy, customer success outreach, address negative reviews professionally, build positive testimonial content.",
+    "sources": [
+      "AI systems reflect the web's consensus about a brand. Negative review dominance in search results translates to negative AI descriptions."
+    ],
+    "notes": "Requires runtime web-search results for brand + \"reviews\" queries."
+  },
+  {
+    "check_id": "I-06",
+    "check_version": 1,
+    "category": "I",
+    "category_name": "GEO",
+    "source_id": "I6",
+    "name": "Brand Recommended Over Competitors",
+    "dimension": "Favorability",
+    "description": "Checks the brand's position and framing in category-query results relative to competitors. Brand positioning in category content directly influences AI recommendations.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "WebSearch category ranking",
+    "assessment_method": "WebSearch \"best [category]\" results. Check brand's position and framing.",
+    "badge": "model_judgment",
+    "criteria": {
+      "pass": "Brand appears in top results for category queries AND is positioned favorably (recommended, highly rated)",
+      "warn": "Brand mentioned but not recommended or positioned neutrally",
+      "fail": "Brand not mentioned, or mentioned unfavorably compared to competitors"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "offpage_entity",
+    "fix_template": "OFF-PAGE WORK — create \"[Brand] vs [Competitor]\" content on your blog, build use-case-specific landing pages, earn placement in category listicles.",
+    "sources": [
+      "GEO: brand positioning in category content directly influences AI recommendations. Owned comparison content (\"Brand vs Competitor\") helps control narrative."
+    ],
+    "notes": "Requires runtime web-search results for category queries."
+  },
+  {
+    "check_id": "I-07",
+    "check_version": 1,
+    "category": "I",
+    "category_name": "GEO",
+    "source_id": "I7",
+    "name": "Consistent Entity Data Across Sources",
+    "dimension": "Accuracy",
+    "description": "Cross-references brand name, description, and category across multiple search-result sources. Entity consistency across the web strengthens AI confidence; inconsistency causes AI to pick randomly or blend a wrong description.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "Cross-ref web search results",
+    "assessment_method": "Cross-reference brand information across multiple search result entries.",
+    "badge": "model_judgment",
+    "criteria": {
+      "pass": "Brand name, description, and category are consistent across 3+ search result sources",
+      "warn": "Minor inconsistencies across sources",
+      "fail": "Major inconsistencies — different name variants, conflicting descriptions, wrong categories"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "offpage_entity",
+    "fix_template": "Audit and update all third-party profiles to use identical brand name, description, and category. Start with highest-authority sources first.",
+    "sources": [
+      "Entity consistency across the web strengthens AI's confidence in brand information. Inconsistency = AI picks randomly or generates a blended (often wrong) description."
+    ],
+    "notes": "Requires runtime web-search results across multiple sources."
+  },
+  {
+    "check_id": "I-08",
+    "check_version": 1,
+    "category": "I",
+    "category_name": "GEO",
+    "source_id": "I8",
+    "name": "sameAs Links to Authoritative Profiles",
+    "dimension": "Presence",
+    "description": "Parses the Organization schema sameAs array and verifies each URL resolves to a real, active profile. Active, verified external profiles strengthen entity recognition across all AI systems.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "JSON-LD sameAs + WebFetch verify",
+    "assessment_method": "Parse Organization schema sameAs. WebFetch each URL to verify it resolves.",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Organization schema has sameAs array with 2+ URLs that resolve to real, active profiles",
+      "warn": "sameAs URLs present but some don't resolve or are inactive",
+      "fail": "No sameAs in Organization schema"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Add active social/professional profile URLs to Organization schema sameAs array",
+    "sources": [
+      "sameAs is the structured data mechanism for entity disambiguation. Active, verified external profiles strengthen entity recognition across all AI systems."
+    ],
+    "notes": "Verification step requires fetching external profile URLs (outbound fetches beyond the audited page)."
+  }
+]

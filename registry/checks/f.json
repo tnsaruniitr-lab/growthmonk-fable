@@ -1,0 +1,308 @@
+[
+  {
+    "check_id": "F-01",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F1",
+    "name": "First Paragraph Answers Query",
+    "description": "Verifies that the first 150 words contain a declarative entity definition (entity name + category + primary function). Self-contained answer blocks near the top of the page are the primary extraction target for AI answer engines.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "First 150 words must contain: entity name + category + function in \"X is a Y that does Z\" format",
+    "badge": "static_rule",
+    "criteria": {
+      "pass": "First 150 words contain ALL THREE: (a) entity/brand name, (b) category/type word, (c) primary function — in declarative \"X is a Y that does Z\" format",
+      "warn": "Entity name present but category or function definition missing",
+      "fail": "First 150 words contain no declarative entity definition (opens with tagline, story, or preamble)"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "content_restructure",
+    "fix_template": "\"[Entity] is a [category] [for audience] that [primary function]. [Key differentiator]. [Proof point or quantitative claim].\"",
+    "sources": [
+      "AI Overviews: self-contained 134-167 word blocks score 4.2x higher citation. Perplexity L3 reranker scores entity clarity. GEO paper: fluency + clarity = 15-30% visibility boost."
+    ]
+  },
+  {
+    "check_id": "F-02",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F2",
+    "name": "Quick-Answer Block Near H1",
+    "description": "Checks for a summary, callout, or TL;DR block within 200 words of the H1 that directly answers the primary query. AI extractors scan top-of-page content first, and a delineated answer block signals \"this is the answer\".",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check for summary/callout within 200 words of H1",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "Within 200 words of H1, there is a summary, callout, or TL;DR block that directly answers the primary query",
+      "warn": "Answer exists but not within first 200 words after H1",
+      "fail": "No quick-answer element anywhere near the top of content"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "content_restructure",
+    "fix_template": "Add a summary block immediately after H1: `<div class=\"quick-answer\">[2-3 sentence direct answer to the primary query]</div>`",
+    "sources": [
+      "AI extractors scan top-of-page content first. A clearly delineated answer block (styled differently, in a callout/box) signals \"this is the answer\" to both AI and users."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "F-03",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F3",
+    "name": "FAQ Section With 3+ Q&A Pairs",
+    "description": "Verifies the page has an identifiable FAQ section with at least 3 question-answer pairs. FAQ content is the most directly extractable format for AI answer engines because questions map directly to user queries.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Count Q&A pairs in HTML/schema",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Page has identifiable FAQ section with 3+ question-answer pairs",
+      "warn": "1-2 Q&A pairs",
+      "fail": "No FAQ or Q&A content"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "content_restructure",
+    "fix_template": "Add FAQ section with 5-8 Q&A pairs. Derive questions from target queries + \"People Also Ask\" patterns.",
+    "sources": [
+      "FAQPage schema = 3.2x citation increase. FAQ content is the most directly extractable format for AI answer engines. Questions map directly to user queries."
+    ]
+  },
+  {
+    "check_id": "F-04",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F4",
+    "name": "FAQ Uses Semantic Markup",
+    "description": "Checks that FAQ content uses semantic HTML (details/summary, dl/dt/dd, or clearly structured Q/A markup) so AI parsers can identify question and answer boundaries.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check details/summary or clear Q+A structure",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "FAQ uses `<details>/<summary>`, `<dl>/<dt>/<dd>`, or clearly structured Q/A HTML",
+      "warn": "FAQ exists but uses generic divs without semantic structure",
+      "fail": "FAQ content with no semantic markup or accessibility"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "page_html",
+    "fix_template": "Wrap FAQ in `<details><summary>[Question]</summary><p>[Answer]</p></details>`",
+    "sources": [
+      "Semantic markup helps AI parsers identify question boundaries and answer boundaries. `<details>/<summary>` is native HTML — no JS needed."
+    ]
+  },
+  {
+    "check_id": "F-05",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F5",
+    "name": "FAQ Questions Use Natural Language",
+    "description": "Verifies that FAQ questions are phrased as natural-language questions (How/What/When/Why/Is/Can/Does/Where/Which) rather than statements or branded phrases, so they match how users actually query AI engines.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Questions start with How/What/When/Why/Is/Can",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "80%+ of FAQ questions start with How/What/When/Why/Is/Can/Does/Where/Which",
+      "warn": "50-79% use natural language phrasing",
+      "fail": "< 50% (questions are statements or branded phrases)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Rephrase FAQ headings as natural questions: \"Features\" → \"What features does [brand] offer?\"",
+    "sources": [
+      "AI query matching works best with natural language questions. \"How does TRYPS work?\" matches user queries better than \"TRYPS Features\" as an FAQ heading."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "F-06",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F6",
+    "name": "Headings Phrased as Questions or Answers",
+    "description": "Checks whether H2/H3 headings are phrased as questions or direct answers instead of branded or abstract labels. AI systems match user queries against heading text to locate relevant sections.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "H2/H3 text has question marks or direct-answer phrasing",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "50%+ of H2/H3 headings contain question marks OR are direct-answer phrases",
+      "warn": "25-49% question/answer phrasing",
+      "fail": "< 25% (most headings are branded or abstract labels)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Convert \"Our Process\" → \"How does [brand] work?\" or \"Simple Process\" → \"3 Steps to Plan Your Group Trip\"",
+    "sources": [
+      "Question-style H2s create natural query-answer mapping. AI systems match user queries against heading text to locate relevant sections."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "F-07",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F7",
+    "name": "Named Entities (Not Vague Pronouns)",
+    "description": "Verifies that specific entity names outnumber vague pronouns in the first 300 words. AI extractors need entity clarity to understand what the content is about — \"[Brand] helps [audience]\" is extractable, \"our platform helps your team\" is not.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Count entity names vs \"it\",\"they\",\"our\",\"your\" in first 300 words. Ratio > 3:1 = pass",
+    "badge": "static_rule",
+    "criteria": {
+      "pass": "In first 300 words, specific entity names outnumber vague pronouns (\"it\", \"they\", \"we\", \"our\", \"your\", \"this\") by 3:1 ratio or better",
+      "warn": "Ratio 1:1 to 3:1",
+      "fail": "Pronouns outnumber entity names"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Replace vague references with specific names. \"We help you\" → \"[Brand] helps [audience]\". \"Our tool\" → \"[Product name]\".",
+    "sources": [
+      "AI extractors need entity clarity to understand WHAT the content is about. \"Our platform helps your team\" is ambiguous. \"[Brand] helps [specific audience]\" is extractable. Perplexity L3 scores entity clarity."
+    ]
+  },
+  {
+    "check_id": "F-08",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F8",
+    "name": "Specific Facts (Numbers, Dates, Prices)",
+    "description": "Counts quantitative claims (numbers, percentages, dates, prices, durations) in the content. AI systems prefer citable facts over vague marketing claims.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Regex count: quantities, dates, currency, percentages",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "5+ quantitative claims in content (numbers, percentages, dates, prices, durations)",
+      "warn": "2-4 quantitative claims",
+      "fail": "0-1 quantitative claims (all qualitative/vague)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Replace vague claims with specific data. \"Saves time\" → \"Saves an average of 3 hours per trip.\" \"Many users\" → \"Used by 500+ groups.\"",
+    "sources": [
+      "GEO paper: \"Statistics Addition\" = 30-40% visibility boost for law/government, strong for all domains. AI systems prefer citable facts over vague claims. Sieve Anti-pattern #797: \"Using Vague Marketing Language Instead of Verifiable Claims.\""
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "F-09",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F9",
+    "name": "Definition-First Writing Style",
+    "description": "Verifies the first sentence of the page is an entity definition (\"X is a Y\" pattern). Definition-first openings create an extractable entity description; AI Overview citation blocks start with entity definitions.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "First sentence matches \"X is a Y\" or \"X is [article] Y that\" pattern",
+    "badge": "static_rule",
+    "criteria": {
+      "pass": "First sentence of the page matches \"X is a Y\" or \"X is [article] Y that [verb]\" pattern",
+      "warn": "First sentence contains the entity name but in non-definitional format",
+      "fail": "First sentence is a tagline, question, or narrative opener with no entity definition"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Start with: \"[Entity] is a [category noun] that/for [function/audience].\"",
+    "sources": [
+      "Definition-first opening creates an extractable entity description. AI Overview citation blocks start with entity definitions. Perplexity L3 reranker scores entity clarity."
+    ]
+  },
+  {
+    "check_id": "F-10",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F10",
+    "name": "Summary/TL;DR at End",
+    "description": "Checks that the last 20% of content contains a labeled summary section. End-of-article summaries provide a second extraction point for AI systems and bookend the opening answer block.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Scan last 20% of content for summary section",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "Last 20% of content contains a summary section (heading includes \"summary\", \"takeaway\", \"conclusion\", \"TL;DR\", \"key points\")",
+      "warn": "Closing section exists but not clearly labeled as summary",
+      "fail": "Content ends without any summary or recap"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Add section: `## Key Takeaways` with 3-5 bullet points summarizing the core information",
+    "sources": [
+      "End-of-article summaries provide a second extraction point for AI systems. Users who scroll to the end get a recap. Creates bookend with the opening answer block."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "F-11",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F11",
+    "name": "Self-Contained Answer Units",
+    "description": "Assesses whether each H2 section can be understood independently if extracted alone. AI engines extract sections, not full pages — self-contained sections are citation candidates, context-dependent ones are not.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "Each H2 section independently comprehensible if extracted alone",
+    "badge": "model_judgment",
+    "criteria": {
+      "pass": "Each H2 section can be understood independently if extracted alone — contains enough context to be a standalone answer",
+      "warn": "Most sections are self-contained but 1-2 depend on prior sections for context",
+      "fail": "Sections heavily reference prior content (\"as mentioned above\", \"building on the previous point\") and cannot stand alone"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Start each section with a brief contextual sentence that doesn't assume the reader saw previous sections",
+    "sources": [
+      "AI engines extract SECTIONS, not full pages. Each section is a potential citation candidate. Self-contained = citable. Context-dependent = not citable."
+    ]
+  },
+  {
+    "check_id": "F-12",
+    "check_version": 1,
+    "category": "F",
+    "category_name": "AEO — Extraction",
+    "source_id": "F12",
+    "name": "Tables/Lists for Comparative Data",
+    "description": "Verifies that multi-item or comparative data is presented in tables or structured lists rather than paragraph prose. Tables and lists are highly extractable by all AI engines.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Count table + ol/ul elements in body",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Page uses `<table>` or structured `<ul>/<ol>` for presenting multi-item or comparative data",
+      "warn": "Lists exist but data that should be in a table is in paragraph form",
+      "fail": "No tables or structured lists, and content contains comparative or multi-item data",
+      "na": "Content doesn't contain comparative data"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "content_restructure",
+    "fix_template": "Convert comparison paragraphs to `<table>` with clear column headers",
+    "sources": [
+      "40-61% of AI Overviews use list/bullet formats. Tables are highly extractable by all AI engines. Comparison tables map directly to \"[Product] vs [Product]\" queries."
+    ]
+  }
+]

@@ -1,0 +1,102 @@
+[
+  {
+    "check_id": "J-01",
+    "check_version": 1,
+    "category": "J",
+    "category_name": "Entity Consistency",
+    "source_id": "J1",
+    "name": "Organization Name Consistent",
+    "description": "Cross-references the brand name across Organization schema, og:site_name, title tag, and footer text. Inconsistent naming fragments entity recognition — Google and AI systems may treat name variants as different entities.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Cross-ref schema/OG/title/footer",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Brand name is identical in: Organization schema name, og:site_name, title tag brand portion, footer copyright/brand text",
+      "warn": "1 source differs slightly (e.g., \"TRYPS\" vs \"TRYPS App\" vs \"Tryps\")",
+      "fail": "2+ sources differ, or significantly different names across sources"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "sitewide_template",
+    "fix_template": "Standardize brand name across all on-page references. Pick one canonical name and use it everywhere.",
+    "sources": [
+      "Entity consistency helps AI systems unify brand identity. Inconsistent naming = fragmented entity recognition. Google and AI systems may treat \"TRYPS\" and \"TRYPS App\" as different entities."
+    ]
+  },
+  {
+    "check_id": "J-02",
+    "check_version": 1,
+    "category": "J",
+    "category_name": "Entity Consistency",
+    "source_id": "J2",
+    "name": "Logo Consistent",
+    "description": "Checks that the logo referenced in Organization schema matches og:image or favicon references. Visual brand consistency reinforces entity identity — a minor but easy-to-fix signal.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Cross-ref schema/OG/favicon",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Logo/image referenced in Organization schema matches og:image or favicon references",
+      "warn": "Different images across schema and OG",
+      "fail": "No logo in schema, or completely different images across sources"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "sitewide_template",
+    "fix_template": "Use the same logo URL in Organization schema logo field and og:image",
+    "sources": [
+      "Visual brand consistency reinforces entity identity. Minor signal but easy to fix."
+    ]
+  },
+  {
+    "check_id": "J-03",
+    "check_version": 1,
+    "category": "J",
+    "category_name": "Entity Consistency",
+    "source_id": "J3",
+    "name": "URL/Domain Consistent",
+    "description": "Verifies canonical URL, schema @id, and og:url all reference the same domain and path. Domain inconsistency fragments siteAuthority — multiple domains without canonical consolidation split signals.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Cross-ref canonical/schema @id/OG url",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Canonical URL, schema @id, og:url all reference the same domain and path",
+      "fail": "Different domains or paths across these references (e.g., trypsagent.com in one, jointryps.com in another)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "page_html",
+    "fix_template": "Standardize on one domain. Set canonical. Ensure schema @id and og:url match canonical URL.",
+    "sources": [
+      "Domain inconsistency fragments siteAuthority (confirmed in API leak). Multiple domains without proper canonical consolidation split signals."
+    ]
+  },
+  {
+    "check_id": "J-04",
+    "check_version": 1,
+    "category": "J",
+    "category_name": "Entity Consistency",
+    "source_id": "J4",
+    "name": "sameAs URLs Resolve",
+    "description": "Fetches every sameAs URL in the Organization schema and verifies it returns 200 and references the brand. Dead sameAs links signal neglected entity management and weaken trust when AI systems follow them to verify identity.",
+    "applies_to": ["all"],
+    "method": "measured",
+    "method_detail": "WebFetch each sameAs URL",
+    "badge": "measured",
+    "criteria": {
+      "pass": "All sameAs URLs in Organization schema return 200 status and contain brand references",
+      "warn": "Some sameAs URLs resolve but don't clearly link back to the brand",
+      "fail": "sameAs URLs return 404, redirect to unrelated pages, or don't resolve"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Remove dead sameAs URLs. Replace with active, verified profiles. Ensure each profile clearly references the brand.",
+    "sources": [
+      "Dead sameAs links signal neglected entity management. AI systems that follow sameAs to verify identity will find dead ends — weakening trust."
+    ],
+    "notes": "Verification requires fetching external profile URLs (outbound fetches beyond the audited page)."
+  }
+]

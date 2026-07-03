@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://example.com/search?q=hello&amp;lang=en</loc>
+    <lastmod>2026-04-19T12:00:00Z</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc><![CDATA[https://example.com/articles/what-is-seo&aeo]]></loc>
+    <lastmod>2026-04-18T09:30:00Z</lastmod>
+  </url>
+  <url>
+    <loc>https://example.com/products/widget?id=123&amp;utm=email</loc>
+    <lastmod>2026-04-17T00:00:00Z</lastmod>
+  </url>
+  <url>
+    <loc>https://example.com/simple-page</loc>
+    <lastmod>2026-04-16T00:00:00Z</lastmod>
+  </url>
+</urlset>

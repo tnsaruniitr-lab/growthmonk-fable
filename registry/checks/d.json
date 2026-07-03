@@ -1,0 +1,315 @@
+[
+  {
+    "check_id": "D-01",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "JSON-LD Block Present",
+    "description": "Verifies at least one valid JSON-LD script block exists. Pages with schema see 73% higher AI Overview selection, but quality matters — minimally populated schema underperforms no schema.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check for script type=\"application/ld+json\"",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "At least one `<script type=\"application/ld+json\">` block exists with valid JSON",
+      "fail": "No JSON-LD blocks found"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "schema",
+    "fix_template": "Add appropriate JSON-LD block for page type (see schema-validation.md for required fields)",
+    "sources": [
+      "BrightEdge: 73% higher AI Overview selection with schema. 3.2x more AI answer appearances with FAQPage. BUT generic/minimally populated schema underperforms no schema (41.6% vs 59.8%) — quality matters."
+    ]
+  },
+  {
+    "check_id": "D-02",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "@context Is https://schema.org",
+    "description": "Verifies the JSON-LD @context uses the HTTPS schema.org URL. Google requires the https:// prefix; the http:// prefix may work but is technically incorrect.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Validate @context field",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "@context field is `\"https://schema.org\"` (HTTPS, not HTTP)",
+      "fail": "@context is `\"http://schema.org\"` or missing or wrong"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Change `\"@context\": \"http://schema.org\"` to `\"@context\": \"https://schema.org\"`",
+    "sources": [
+      "schema.org is the standard. Google requires `https://` prefix. HTTP prefix may work but is technically incorrect."
+    ]
+  },
+  {
+    "check_id": "D-03",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "Page-Appropriate @type Present",
+    "description": "Verifies the schema @type matches the page classification (e.g., Article/BlogPosting for blog pages, Product for product pages). Wrong @type means wrong interpretation by search engines and AI systems.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check @type vs page classification (schema-validation.md)",
+    "badge": "static_rule",
+    "criteria": {
+      "pass": "@type matches page classification (Article/BlogPosting for blog, Product for product, etc.)",
+      "warn": "@type present but may not be the best match (e.g., WebPage instead of Article for a blog)",
+      "fail": "No relevant @type for page classification, or wrong @type"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "schema",
+    "fix_template": "Add or correct @type to match page classification",
+    "sources": [
+      "@type tells search engines and AI systems what this content IS. Wrong @type = wrong interpretation. See schema-validation.md for type-to-page mapping."
+    ]
+  },
+  {
+    "check_id": "D-04",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "@id With Unique Fragment URL",
+    "description": "Verifies schema entities carry an @id using the {page URL}#{type} fragment pattern. @id enables entity linking across schema blocks (Organization ↔ Person ↔ Article), important for E-E-A-T entity graphs.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check @id exists with URL#fragment",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Schema has `@id` field using `{page URL}#{type}` pattern (e.g., `\"https://example.com/#organization\"`)",
+      "warn": "@id present but not using fragment pattern",
+      "fail": "No @id on main schema entities"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Add `\"@id\": \"https://[domain]/[path]/#[type]\"` to each schema block",
+    "sources": [
+      "@id enables entity linking across schema blocks. Google uses @id to connect related entities (Organization ↔ Person ↔ Article). Particularly important for E-E-A-T entity graphs."
+    ]
+  },
+  {
+    "check_id": "D-05",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "BreadcrumbList Present (Non-Homepage)",
+    "description": "Verifies non-homepage pages carry BreadcrumbList schema with a valid itemListElement array. Breadcrumbs help search engines understand site hierarchy and enable breadcrumb rich results.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check for BreadcrumbList @type",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "BreadcrumbList schema with valid itemListElement array",
+      "fail": "No BreadcrumbList (on non-homepage pages)",
+      "na": "Homepage (breadcrumbs not expected)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "See schema-validation.md for BreadcrumbList required fields",
+    "sources": [
+      "BreadcrumbList helps search engines understand site hierarchy. Enables breadcrumb rich results in SERPs."
+    ]
+  },
+  {
+    "check_id": "D-06",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "Required Fields Present Per @type",
+    "description": "Verifies each schema block carries all required fields for its @type per the schema-validation.md registry. Incomplete schema may fail Google Rich Results validation.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Cross-ref vs schema-validation.md required list",
+    "badge": "static_rule",
+    "criteria": {
+      "pass": "All required fields present per schema-validation.md for each @type found",
+      "warn": "1-2 required fields missing",
+      "fail": "3+ required fields missing or critical fields (name, @type) missing"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "schema",
+    "fix_template": "Add missing required fields. See schema-validation.md for complete field list per @type.",
+    "sources": [
+      "Incomplete schema may fail Google Rich Results validation. Generic/minimal schema underperforms no schema (41.6% vs 59.8% citation rate)."
+    ]
+  },
+  {
+    "check_id": "D-07",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "Recommended Fields Present Per @type",
+    "description": "Verifies schema blocks include the recommended (not just required) fields for their @type. Attribute-rich schema earns a 61.7% citation rate — richness signals quality to AI systems.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Cross-ref vs schema-validation.md recommended list",
+    "badge": "static_rule",
+    "criteria": {
+      "pass": "80%+ of recommended fields present",
+      "warn": "50-79% of recommended fields present",
+      "fail": "< 50% of recommended fields present"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Add recommended fields per schema-validation.md",
+    "sources": [
+      "Attribute-rich schema earns 61.7% citation rate. Richness signals quality to AI systems."
+    ]
+  },
+  {
+    "check_id": "D-08",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "Organization/WebSite Schema Present",
+    "description": "Verifies Organization or WebSite schema exists. Organization schema establishes entity identity and WebSite schema enables sitelinks search — both matter for brand entity recognition by AI systems.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check for Organization or WebSite @type",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Organization OR WebSite schema exists on the page",
+      "warn": "Neither present on a non-homepage page (may exist on homepage only)",
+      "fail": "Neither present on the homepage"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Add Organization schema with name, url, logo, description, sameAs",
+    "sources": [
+      "Organization schema establishes entity identity. WebSite schema enables sitelinks search. Both important for brand entity recognition by AI systems."
+    ]
+  },
+  {
+    "check_id": "D-09",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "FAQPage Schema If FAQ Content Exists",
+    "description": "Verifies that visible Q&A content is backed by matching FAQPage schema whose answers are complete and non-promotional. FAQPage yields a 3.2x citation increase, but Google may demote or reject markup with promotional or truncated answer text.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "If HTML has Q&A → check FAQPage schema + answer quality (no promotional, not truncated)",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "HTML has Q&A content AND FAQPage schema exists matching it AND answer text contains no promotional/advertising content",
+      "warn": "Q&A content exists but no FAQPage schema",
+      "fail": "Mismatch: FAQPage schema exists but doesn't match visible Q&A content. Promotional: FAQ answer text contains promotional language, CTAs, pricing pitches, or advertising (\"Buy now\", \"Sign up today\", \"Best in class\"). Truncated: FAQ answers are truncated, incomplete, or too vague to be useful.",
+      "na": "No Q&A content on page"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "schema",
+    "fix_template": "Add FAQPage schema with mainEntity array matching visible Q&A pairs. Ensure each answer is: (a) factual and informative, not promotional, (b) complete — minimum 1-2 sentences, (c) self-contained — understandable without reading the rest of the page",
+    "sources": [
+      "FAQPage = 3.2x citation increase in AI answers (BrightEdge). Sieve Rule #1603 (Schema.org, 0.97): \"FAQPage Must Not Contain Promotional Content in Answers\" — Google may demote or reject markup with promotional answer text. Sieve Rule #1602 (Schema.org, 0.96): \"FAQPage Answer Text Must Not Be Truncated.\" Sieve AP#815 (high): \"Including promotional or advertising content in FAQPage answer text.\" Sieve AP#816 (medium): \"Writing truncated or incomplete FAQ answers.\""
+    ]
+  },
+  {
+    "check_id": "D-10",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "Image Fields Use ImageObject",
+    "description": "Verifies schema image fields use the ImageObject format rather than bare URL strings. ImageObject allows width, height, and caption — richer data for search engines; a minor quality signal.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check schema image fields for @type ImageObject",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "All schema `image` fields use `{\"@type\": \"ImageObject\", \"url\": \"...\"}` format",
+      "warn": "Mix of ImageObject and bare URL strings",
+      "fail": "All image fields are bare URL strings"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "schema",
+    "fix_template": "Convert `\"image\": \"https://...\"` to `\"image\": {\"@type\": \"ImageObject\", \"url\": \"https://...\", \"width\": X, \"height\": Y}`",
+    "sources": [
+      "ImageObject allows width, height, caption — richer data for search engines. Minor quality signal."
+    ]
+  },
+  {
+    "check_id": "D-11",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "datePublished/dateModified in ISO 8601",
+    "description": "Verifies datePublished and dateModified are present in schema in ISO 8601 format. dateModified is the strongest freshness signal for AI engines; Perplexity weights freshness heavily.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Validate date formats in schema",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Both datePublished and dateModified present in ISO 8601 format (YYYY-MM-DD or full ISO)",
+      "warn": "datePublished present but dateModified missing",
+      "fail": "Neither date present in schema",
+      "na": "Homepage, product pages (dates less critical)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Add `\"datePublished\": \"YYYY-MM-DD\"` and `\"dateModified\": \"YYYY-MM-DD\"` (use actual dates, not placeholder)",
+    "sources": [
+      "Google API leak: three date signals. Perplexity weights freshness heavily (3.2x for < 30 days). dateModified is the strongest freshness signal for AI engines."
+    ]
+  },
+  {
+    "check_id": "D-12",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "Author With Person Type and Name",
+    "description": "Verifies the schema author field is a Person object with a name, not a plain string. 96% of AI Overview citations come from E-E-A-T sources, and the author entity is a primary E-E-A-T signal.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check author field for Person @type + name",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "`\"author\": {\"@type\": \"Person\", \"name\": \"[Full Name]\"}` present",
+      "warn": "Author field exists but as plain text string, not Person object",
+      "fail": "No author field in schema",
+      "na": "Homepage, product pages"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Add `\"author\": {\"@type\": \"Person\", \"name\": \"[Name]\", \"jobTitle\": \"[Title]\", \"sameAs\": [\"[LinkedIn URL]\"]}`",
+    "sources": [
+      "96% of AI Overview citations come from E-E-A-T sources. Author entity is a primary E-E-A-T signal. API leak confirmed `author` fields and `isAuthor` booleans stored per document."
+    ]
+  },
+  {
+    "check_id": "D-13",
+    "check_version": 1,
+    "category": "D",
+    "category_name": "Schema / Structured Data",
+    "name": "Speakable Property Present",
+    "description": "Verifies Article/WebPage schema carries a speakable SpeakableSpecification. Speakable markup tells voice assistants and AI extractors which sections are best for audio/answer extraction.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check for speakable with cssSelector",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "`\"speakable\": {\"@type\": \"SpeakableSpecification\", \"cssSelector\": [...]}` present on Article/WebPage",
+      "fail": "No speakable property",
+      "na": "Non-article pages"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Add `\"speakable\": {\"@type\": \"SpeakableSpecification\", \"cssSelector\": [\".summary\", \".faq-answer\", \".key-takeaway\"]}`",
+    "sources": [
+      "Speakable markup tells voice assistants and AI extractors which sections are best for audio/answer extraction. Must target answer content, NOT navigation or CTAs."
+    ]
+  }
+]

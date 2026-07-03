@@ -1,0 +1,291 @@
+[
+  {
+    "check_id": "A-01",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "HTTPS Enforcement",
+    "description": "Verifies the page is served over HTTPS and sends a Strict-Transport-Security header. HTTPS is a confirmed Google ranking signal and a baseline trust requirement for AI crawlers; HSTS prevents protocol downgrade attacks.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "URL scheme + HSTS header",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "URL scheme is `https://` AND response includes `Strict-Transport-Security` header",
+      "warn": "URL scheme is `https://` but no HSTS header",
+      "fail": "URL scheme is `http://` or page loads over HTTP"
+    },
+    "weight": 3,
+    "severity": "critical",
+    "fix_type": "sitewide_template",
+    "fix_template": "Redirect HTTP → HTTPS at server level. Add header: `Strict-Transport-Security: max-age=31536000; includeSubDomains`",
+    "sources": [
+      "Google confirmed HTTPS as ranking signal (2014). HSTS prevents downgrade attacks. All AI crawlers require HTTPS for trust signals."
+    ]
+  },
+  {
+    "check_id": "A-02",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "Title Tag Present, 50-60 Characters",
+    "description": "Verifies a <title> tag exists and its length falls in the 50-60 character optimum. Google truncates titles at ~600px (~60 chars), and titles under 50 chars are usually too generic to differentiate in SERPs.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Extract `<title>`, count chars",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "`<title>` tag exists AND character count 50-60 (inclusive)",
+      "warn": "Title exists but 40-49 or 61-70 characters",
+      "fail": "No `<title>` tag OR title empty OR title < 40 characters OR title > 70 characters"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "page_html",
+    "fix_template": "`<title>[Primary keyword] — [Brand] | [Differentiator]</title>` (aim for 50-55 chars)",
+    "sources": [
+      "Google truncates at ~600px (~60 chars). 2026 consensus: 50-60 is optimal. Titles < 50 are usually too generic to differentiate in SERPs. API leak confirmed `titlematchScore`. Pixel width (600px) is the real limit, not character count."
+    ]
+  },
+  {
+    "check_id": "A-03",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "Meta Description Present, 120-160 Characters",
+    "description": "Verifies a meta description exists at 120-160 characters. Not a ranking signal, but pages with custom descriptions get ~25% higher CTR than auto-generated snippets.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Extract meta description, count chars",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "`<meta name=\"description\">` exists AND content 120-160 characters",
+      "warn": "Description exists but < 120 or 161-180 characters",
+      "fail": "No meta description OR empty OR > 180 characters"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "page_html",
+    "fix_template": "`<meta name=\"description\" content=\"[Entity] is a [category] that [key benefit]. [Proof point or CTA]. [Differentiator].\">`",
+    "sources": [
+      "Not a ranking signal (confirmed by Google). Affects CTR — pages with custom descriptions get ~25% higher CTR than auto-generated snippets. Google may rewrite descriptions regardless."
+    ]
+  },
+  {
+    "check_id": "A-04",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "Canonical Tag Present and Self-Referencing",
+    "description": "Verifies a canonical link element exists and points at the current page URL (after normalization). Canonical is the primary URL-consolidation signal; missing or cross-domain canonicals fragment siteAuthority.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Extract `<link rel=\"canonical\">`, compare to URL",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "`<link rel=\"canonical\" href=\"[current URL]\">` exists AND href matches current page URL (normalized — trailing slashes, www/non-www)",
+      "warn": "Canonical exists but points to a different URL on same domain (intentional consolidation possible)",
+      "fail": "No canonical tag OR canonical points to different domain OR canonical is empty"
+    },
+    "weight": 3,
+    "severity": "critical",
+    "fix_type": "page_html",
+    "fix_template": "`<link rel=\"canonical\" href=\"https://[domain]/[path]/\">`",
+    "sources": [
+      "Google API leak confirmed `siteAuthority` — split domains fragment this signal. Canonical is the primary signal for URL consolidation. Missing canonical on redirecting domains (e.g., trypsagent.com → jointryps.com) is a critical failure."
+    ]
+  },
+  {
+    "check_id": "A-05",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "Robots Meta Allows Indexing",
+    "description": "Verifies the page is not marked noindex/none via the robots meta tag. A noindex directive excludes the page from the Google index and from AI Overviews regardless of any other signal.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check meta robots for noindex",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "No `<meta name=\"robots\">` tag (default = index) OR tag contains `index` or `all`",
+      "fail": "`<meta name=\"robots\" content=\"noindex\">` or `content=\"none\"`"
+    },
+    "weight": 3,
+    "severity": "critical",
+    "fix_type": "page_html",
+    "fix_template": "Remove `noindex` or change to `<meta name=\"robots\" content=\"index, follow, max-snippet:-1, max-image-preview:large\">`",
+    "sources": [
+      "Google Rule #1166 (0.99): \"Noindex directive excludes page from Google index regardless of other signals.\" Also excludes from AI Overviews."
+    ],
+    "notes": "This is a GATE CHECK — if this fails, Gate 1 triggers and dominates the report"
+  },
+  {
+    "check_id": "A-06",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "Exactly One H1 Tag",
+    "description": "Verifies the page has exactly one H1 element. The H1 signals the primary topic to search engines and AI extractors; a single H1 is best practice for clarity.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Count H1 elements",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Exactly 1 `<h1>` element in the page",
+      "warn": "0 H1 tags (missing) or 2 H1 tags (might be intentional in HTML5 sectioning)",
+      "fail": "3+ H1 tags"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "page_html",
+    "fix_template": "Ensure single `<h1>[Primary page topic]</h1>` early in content",
+    "sources": [
+      "Google has said multiple H1s are \"fine\" but single H1 is best practice for clarity. The H1 signals the primary topic to search engines and AI extractors."
+    ]
+  },
+  {
+    "check_id": "A-07",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "H1 Contains Primary Keyword",
+    "description": "Verifies the H1 text contains the primary keyword or a close semantic variant of the target query. AI extractors use the H1 as the section anchor for topic identification.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "Compare H1 text to title/query keywords",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "H1 text contains the primary keyword or a close semantic variant from the target query",
+      "warn": "H1 is related but doesn't contain the keyword (e.g., branded tagline)",
+      "fail": "H1 is completely unrelated to target query/page topic"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Rewrite H1 to include primary keyword naturally: `<h1>[Keyword-rich descriptive heading]</h1>`",
+    "sources": [
+      "API leak: `titlematchScore` tracks title-query relevance. H1 serves similar function for on-page topic signaling. AI extractors use H1 as section anchor."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "A-08",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "HTML Lang Attribute",
+    "description": "Verifies the <html> element declares a lang attribute. A minor signal that helps search engines and AI systems determine content language and is required for accessibility (WCAG).",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check `<html lang>`",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "`<html lang=\"[valid code]\">` present (e.g., `lang=\"en\"`)",
+      "fail": "No lang attribute on html tag"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "page_html",
+    "fix_template": "`<html lang=\"en\">`",
+    "sources": [
+      "Minor signal. Helps search engines and AI systems determine content language. Required for accessibility (WCAG). Google uses visible content for language detection (not lang attr), but absence is a quality gap."
+    ]
+  },
+  {
+    "check_id": "A-09",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "Viewport Meta Tag",
+    "description": "Verifies the viewport meta tag is present. Required for mobile-first indexing — without it the page renders as desktop on mobile, risking ranking suppression.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check meta viewport",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "`<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">` present",
+      "fail": "No viewport meta tag"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "page_html",
+    "fix_template": "`<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">`",
+    "sources": [
+      "Required for mobile-first indexing. Google crawls mobile version primarily. Without viewport, page renders as desktop on mobile — poor experience, potential ranking suppression."
+    ]
+  },
+  {
+    "check_id": "A-10",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "robots.txt Allows Crawling",
+    "description": "Verifies robots.txt does not Disallow the audited page path for Googlebot or the wildcard user-agent. A Disallow prevents crawling entirely, which prevents indexing (distinct from noindex).",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Parse robots.txt Disallow rules for page path",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "robots.txt has no Disallow rule covering the audited page path for Googlebot or wildcard",
+      "warn": "robots.txt returns 404 (no file — treated as fully permissive by crawlers, but missing is not intentional)",
+      "fail": "robots.txt Disallows the audited page path for Googlebot or wildcard User-agent"
+    },
+    "weight": 3,
+    "severity": "critical",
+    "fix_type": "sitewide_template",
+    "fix_template": "Remove the Disallow line or add specific Allow for the page path",
+    "sources": [
+      "Googlebot Disallow = page will not be indexed. Different from noindex (Disallow prevents crawling; noindex prevents indexing after crawling)."
+    ],
+    "notes": "This is a GATE CHECK — blocking Googlebot triggers Gate 1"
+  },
+  {
+    "check_id": "A-11",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "Sitemap Referenced",
+    "description": "Verifies a sitemap is referenced from robots.txt or the HTML head. Sitemaps help crawlers discover pages efficiently; lastmod is the only sitemap field Google uses.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check robots.txt Sitemap: + link rel sitemap",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "robots.txt contains `Sitemap: [URL]` directive OR `<link rel=\"sitemap\" href=\"...\">` in HTML head",
+      "warn": "Neither present but sitemap exists at /sitemap.xml",
+      "fail": "No sitemap reference anywhere AND no sitemap.xml found"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "sitewide_template",
+    "fix_template": "Add to robots.txt: `Sitemap: https://[domain]/sitemap.xml`",
+    "sources": [
+      "Sitemaps help crawlers discover pages efficiently. Google ignores `priority` and `changefreq` (confirmed Rule #562, 0.99). lastmod is the only useful sitemap signal."
+    ]
+  },
+  {
+    "check_id": "A-12",
+    "check_version": 1,
+    "category": "A",
+    "category_name": "Technical SEO",
+    "name": "Page Renders Without JS Dependency",
+    "description": "Measures how much body text is present in the raw HTML response. GPTBot, PerplexityBot, and ClaudeBot do not execute JavaScript, so content behind JS is invisible to AI crawlers.",
+    "applies_to": ["all"],
+    "method": "measured",
+    "method_detail": "WebFetch content volume vs Chrome (if available)",
+    "badge": "measured",
+    "criteria": {
+      "pass": "WebFetch returns > 500 words of body text (content is in raw HTML)",
+      "warn": "WebFetch returns 200-500 words (partial JS dependency)",
+      "fail": "WebFetch returns < 200 words of body text (heavily JS-dependent)"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "cms_constraint",
+    "fix_template": "Implement server-side rendering (SSR) or static site generation (SSG)",
+    "sources": [
+      "GPTBot, PerplexityBot, ClaudeBot do NOT execute JavaScript (Vercel 500M request study: zero JS execution by GPTBot). Content behind JS is invisible to AI crawlers. Google renders JS but with delay."
+    ],
+    "notes": "This is a GATE CHECK (Gate 2) when combined with Chrome MCP unavailability"
+  }
+]

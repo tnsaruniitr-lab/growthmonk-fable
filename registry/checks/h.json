@@ -1,0 +1,210 @@
+[
+  {
+    "check_id": "H-01",
+    "check_version": 1,
+    "category": "H",
+    "category_name": "AEO — Selection",
+    "source_id": "H1",
+    "name": "Content Depth vs Competitors",
+    "description": "Compares word count and topic coverage against the competitor median. AI Overviews evaluates semantic completeness, and deeper content has more passages for passage-level ranking. Scored RELATIVE to the competitor set — no absolute thresholds.",
+    "applies_to": ["all"],
+    "method": "comparative",
+    "method_detail": "Word count + topic coverage vs top 5 SERP",
+    "badge": "comparative",
+    "criteria": {
+      "pass": "Word count + topic coverage at or above competitor median",
+      "warn": "Within 30% below competitor median",
+      "fail": "More than 30% below competitor median"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "content_restructure",
+    "fix_template": "Expand content to cover topics competitors address. Identify missing subtopics from competitor H2/H3 headings.",
+    "sources": [
+      "Semantic completeness scoring — AI Overviews evaluates whether a source provides sufficient context. Deeper content has more passages for passage-level ranking."
+    ],
+    "notes": "Requires runtime competitor-set data (top-5 SERP pages for the target query) not collected by page fetch alone."
+  },
+  {
+    "check_id": "H-02",
+    "check_version": 1,
+    "category": "H",
+    "category_name": "AEO — Selection",
+    "source_id": "H2",
+    "name": "Unique Data/Research",
+    "description": "Assesses whether the page contains original data (surveys, case studies with metrics, proprietary research, first-person experience) versus purely derivative content. Original research is the highest authority signal for AI systems.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "Compare content for original vs derivative info",
+    "badge": "model_judgment",
+    "criteria": {
+      "pass": "Page contains original data (surveys, case studies with metrics, proprietary research, first-person experience) not found on competitor pages",
+      "warn": "Some unique perspective but no original data",
+      "fail": "Content is entirely derivative — restates what competitors say without adding new information"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "content_restructure",
+    "fix_template": "Add original data point, case study result, or first-person experience that competitors don't have",
+    "sources": [
+      "AI systems prefer authoritative sources. Original research = highest authority signal. Derivative content competes poorly against sources with original data."
+    ],
+    "notes": "Requires runtime competitor-page content for the originality comparison."
+  },
+  {
+    "check_id": "H-03",
+    "check_version": 1,
+    "category": "H",
+    "category_name": "AEO — Selection",
+    "source_id": "H3",
+    "name": "FAQ Coverage vs Competitors",
+    "description": "Compares FAQ pair count against the competitor median. More FAQ coverage means more query-answer match opportunities for AI citation.",
+    "applies_to": ["all"],
+    "method": "comparative",
+    "method_detail": "FAQ pair count vs competitor pages",
+    "badge": "comparative",
+    "criteria": {
+      "pass": "FAQ pair count at or above competitor median",
+      "warn": "Below median but within 50%",
+      "fail": "Below 50% of competitor median, or no FAQ when competitors have 5+"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Add FAQ pairs to match or exceed competitor median. Source questions from \"People Also Ask\" for target queries.",
+    "sources": [
+      "FAQPage = 3.2x citation boost. More FAQ coverage = more query-answer match opportunities."
+    ],
+    "notes": "Requires runtime competitor-set data (competitor FAQ counts)."
+  },
+  {
+    "check_id": "H-04",
+    "check_version": 1,
+    "category": "H",
+    "category_name": "AEO — Selection",
+    "source_id": "H4",
+    "name": "Schema Completeness vs Competitors",
+    "description": "Compares schema type count and field completeness against the competitor median. Rich schema is a measurable competitive advantage for AI citation.",
+    "applies_to": ["all"],
+    "method": "comparative",
+    "method_detail": "Schema type count vs competitor pages",
+    "badge": "comparative",
+    "criteria": {
+      "pass": "Schema type count and field completeness at or above competitor median",
+      "warn": "Slightly below median",
+      "fail": "Significantly less schema than competitors"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Add schema types that competitors have and you don't",
+    "sources": [
+      "Rich schema = 61.7% citation rate. Schema completeness is a measurable competitive advantage for AI citation."
+    ],
+    "notes": "Requires runtime competitor-set data (competitor schema inventories)."
+  },
+  {
+    "check_id": "H-05",
+    "check_version": 1,
+    "category": "H",
+    "category_name": "AEO — Selection",
+    "source_id": "H5",
+    "name": "Fresher Content Than Competitors",
+    "description": "Compares dateModified recency against the competitor median. Freshness is relative — being fresher than competitors is the advantage.",
+    "applies_to": ["all"],
+    "method": "comparative",
+    "method_detail": "dateModified recency vs competitors",
+    "badge": "comparative",
+    "criteria": {
+      "pass": "dateModified more recent than competitor median",
+      "warn": "Within 30 days of competitor median",
+      "fail": "dateModified older than all competitors, or no dateModified when competitors have it"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "page_html",
+    "fix_template": "Update content and dateModified. Add new information, refresh statistics, update references.",
+    "sources": [
+      "Perplexity: 3.2x citation boost for content < 30 days. Freshness is relative — fresher than competitors = advantage."
+    ],
+    "notes": "Requires runtime competitor-set data (competitor dateModified values)."
+  },
+  {
+    "check_id": "H-06",
+    "check_version": 1,
+    "category": "H",
+    "category_name": "AEO — Selection",
+    "source_id": "H6",
+    "name": "E-E-A-T Signals vs Competitors",
+    "description": "Compares author, credential, and citation signals against the competitor median. E-E-A-T is competitive — relative strength determines selection.",
+    "applies_to": ["all"],
+    "method": "comparative",
+    "method_detail": "Author, citations, credentials comparison",
+    "badge": "comparative",
+    "criteria": {
+      "pass": "Equal or more author/credential/citation signals than competitor median",
+      "warn": "Slightly fewer signals",
+      "fail": "Significantly fewer (no author vs competitors with authors, no citations vs competitors with 3+)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "offpage_entity",
+    "fix_template": "Add the specific E-E-A-T signals competitors have that you lack (author, credentials, citations, dates)",
+    "sources": [
+      "96% of AI Overview citations from E-E-A-T sources. E-E-A-T is competitive — relative strength matters."
+    ],
+    "notes": "Requires runtime competitor-set data (competitor E-E-A-T signal inventories)."
+  },
+  {
+    "check_id": "H-07",
+    "check_version": 1,
+    "category": "H",
+    "category_name": "AEO — Selection",
+    "source_id": "H7",
+    "name": "Appears in AI Overview",
+    "description": "Measures whether the page or domain actually appears in AI-generated results for the target query. AI Overview organic overlap dropped to 38% (Jan 2026), so appearance is not guaranteed by organic ranking — this check measures actual presence.",
+    "applies_to": ["all"],
+    "method": "measured",
+    "method_detail": "WebSearch result analysis for AI snippet",
+    "badge": "measured",
+    "criteria": {
+      "pass": "Page/domain appears in WebSearch AI-generated results for target query",
+      "warn": "Domain appears but for different page",
+      "fail": "Not present in any AI results for target query"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "cannot_fix_from_page",
+    "fix_template": "This cannot be directly fixed from this page alone. Requires: E-E-A-T improvements, content depth, schema completeness, freshness — the cumulative effect of fixing other checks.",
+    "sources": [
+      "AI Overview organic overlap dropped to 38% (Jan 2026). Appearance is not guaranteed by organic ranking. This check MEASURES actual presence."
+    ],
+    "notes": "Requires runtime web-search results (AI Overview presence) for the target query."
+  },
+  {
+    "check_id": "H-08",
+    "check_version": 1,
+    "category": "H",
+    "category_name": "AEO — Selection",
+    "source_id": "H8",
+    "name": "Content Matches Query Intent",
+    "description": "Assesses whether content format and depth match the target query's intent type (informational, transactional, navigational). Intent classification is the primary ranking filter — the wrong format for the intent won't rank.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "Content-query alignment vs competitors",
+    "badge": "model_judgment",
+    "criteria": {
+      "pass": "Content format and depth match the query intent type (informational query → comprehensive guide, transactional → product details with pricing)",
+      "warn": "Partial intent match (e.g., informational query but content is too promotional)",
+      "fail": "Intent mismatch (e.g., target query is informational but page is purely a sales landing page)"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "content_restructure",
+    "fix_template": "Identify the dominant intent for the target query (informational/transactional/navigational). Restructure content to match that intent.",
+    "sources": [
+      "Google intent classification is the primary ranking filter. Wrong format for intent = won't rank. API leak: NavBoost tracks \"bad clicks\" from intent mismatches."
+    ],
+    "notes": "Requires a defined target query; source method compares alignment vs competitors."
+  }
+]

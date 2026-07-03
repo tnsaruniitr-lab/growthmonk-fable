@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Country Selector — Not an FAQ</title>
+</head>
+<body>
+  <h1>Select Language &amp; Location</h1>
+
+  <!-- These <details>/<summary> blocks are NOT FAQs.
+       They are country expanders. The current FAQ detector
+       in _bev_analyze.py counts them as 4 FAQ pairs, which
+       produces a noisy D9_faqpage_schema_vs_visible_match
+       failure. After the FAQ gate patch, these should count
+       as 0 FAQ pairs. -->
+
+  <details>
+    <summary>United Arab Emirates</summary>
+    <ul>
+      <li>Dubai</li>
+      <li>Abu Dhabi</li>
+      <li>Sharjah</li>
+    </ul>
+  </details>
+
+  <details>
+    <summary>Kingdom of Saudi Arabia</summary>
+    <ul>
+      <li>Riyadh</li>
+      <li>Jeddah</li>
+    </ul>
+  </details>
+
+  <details>
+    <summary>Qatar</summary>
+    <ul><li>Doha</li></ul>
+  </details>
+
+  <details>
+    <summary>Kuwait</summary>
+    <ul><li>Kuwait City</li></ul>
+  </details>
+</body>
+</html>

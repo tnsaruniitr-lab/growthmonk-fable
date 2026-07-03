@@ -1,0 +1,310 @@
+[
+  {
+    "check_id": "E-01",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "PerplexityBot Allowed",
+    "description": "Verifies robots.txt does not block PerplexityBot. Blocking PerplexityBot is the most common reason for Perplexity invisibility.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "robots.txt User-agent: PerplexityBot rules",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "robots.txt has no Disallow for PerplexityBot, OR explicit Allow",
+      "fail": "robots.txt blocks PerplexityBot"
+    },
+    "weight": 3,
+    "severity": "critical",
+    "fix_type": "sitewide_template",
+    "fix_template": "Add to robots.txt: `User-agent: PerplexityBot\\nAllow: /`",
+    "sources": [
+      "Sieve Rule #1487 (0.99): \"Blocking PerplexityBot is the most common reason for Perplexity invisibility.\" Note: Cloudflare documented Perplexity using stealth crawlers to bypass blocks — blocking may not fully work regardless."
+    ]
+  },
+  {
+    "check_id": "E-02",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "BingPreview Allowed",
+    "description": "Verifies robots.txt does not block BingPreview. Perplexity uses Bing's index as its primary data source, so blocking BingPreview indirectly prevents Perplexity indexing.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "robots.txt BingPreview rules",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "robots.txt has no Disallow for BingPreview",
+      "fail": "robots.txt blocks BingPreview"
+    },
+    "weight": 3,
+    "severity": "critical",
+    "fix_type": "sitewide_template",
+    "fix_template": "Add to robots.txt: `User-agent: BingPreview\\nAllow: /`",
+    "sources": [
+      "Sieve Anti-pattern #803: \"Perplexity uses Bing's index as primary data source. Blocking BingPreview prevents Bing from crawling, which prevents Perplexity from indexing.\""
+    ]
+  },
+  {
+    "check_id": "E-03",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "GoogleBot Allowed",
+    "description": "Verifies robots.txt does not block Googlebot on the audited page path. Blocking Googlebot removes the page from all Google surfaces including AI Overviews — it is all or nothing.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "robots.txt Googlebot rules",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "robots.txt has no Disallow for Googlebot on audited page path",
+      "fail": "Googlebot blocked"
+    },
+    "weight": 3,
+    "severity": "critical",
+    "fix_type": "sitewide_template",
+    "fix_template": "Remove Googlebot Disallow rule",
+    "sources": [
+      "Blocking Googlebot removes page from all Google surfaces including AI Overviews. Cannot block Googlebot for AI Overviews only — it's all or nothing."
+    ],
+    "notes": "GATE CHECK — Googlebot block = no Google indexing = no AI Overviews"
+  },
+  {
+    "check_id": "E-04",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "No nosnippet/max-snippet:0",
+    "description": "Verifies the meta robots tag carries no nosnippet or max-snippet:0 directive. These directives prevent Google from generating any snippet, which excludes the page from AI Overviews selection.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Meta robots nosnippet check",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "No nosnippet or max-snippet:0 in meta robots",
+      "fail": "`nosnippet` or `max-snippet:0` present"
+    },
+    "weight": 3,
+    "severity": "critical",
+    "fix_type": "page_html",
+    "fix_template": "Remove nosnippet. Change to `max-snippet:-1` (unlimited) if snippet control needed.",
+    "sources": [
+      "Sieve Rule #1441 (0.99): \"Page with nosnippet or max-snippet:0 is excluded from AI Overviews selection.\" These directives prevent Google from generating any snippet, including AI Overviews."
+    ]
+  },
+  {
+    "check_id": "E-05",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "Content in Raw HTML",
+    "description": "Measures how much body text is extractable from the raw HTML response. JS-only content is invisible to AI crawlers — this is the #1 AI visibility blocker.",
+    "applies_to": ["all"],
+    "method": "measured",
+    "method_detail": "WebFetch content volume vs Chrome rendered",
+    "badge": "measured",
+    "criteria": {
+      "pass": "WebFetch extracts > 500 words of body text (SSR/static content)",
+      "warn": "WebFetch extracts 200-500 words (partial JS dependency)",
+      "fail": "WebFetch extracts < 200 words (JS SPA — content invisible to AI crawlers)"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "cms_constraint",
+    "fix_template": "Implement SSR or SSG. Ensure all critical content is in initial HTML response.",
+    "sources": [
+      "Sieve Rule #1481 (0.99): \"Perplexity's crawler cannot access JS-rendered content.\" Vercel study: zero JS execution by GPTBot across 500M+ requests. This is the #1 AI visibility blocker."
+    ]
+  },
+  {
+    "check_id": "E-06",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "Content Not Behind JS Accordions",
+    "description": "Verifies FAQ/accordion content is present in the initial HTML rather than loaded via JavaScript on click. AI crawlers do not execute JS, click interactive elements, or expand accordions.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check details/summary HTML fallback presence",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "FAQ/accordion content is in initial HTML (just visually collapsed via CSS)",
+      "warn": "Accordion content appears to be in HTML but uses JS toggle (may be in DOM)",
+      "fail": "Accordion content loaded via JavaScript on click (not in initial HTML)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "page_html",
+    "fix_template": "Use CSS-only accordions (`<details>/<summary>`) or render content in HTML with CSS visibility toggle",
+    "sources": [
+      "Sieve Anti-pattern #804 (high): \"Perplexity does not execute JavaScript, click interactive elements, expand accordions.\" Content must be in raw HTML to be extractable."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "E-07",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "IndexNow or Ping Mechanism",
+    "description": "Verifies an IndexNow key file or API integration exists. IndexNow notifies Bing (which powers Copilot), Yandex, and Seznam of content changes instantly; Google does not support it.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check for IndexNow key file",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "IndexNow key file exists at `/[key].txt` or IndexNow API integration detected",
+      "fail": "No IndexNow mechanism found"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "sitewide_template",
+    "fix_template": "Implement IndexNow API integration. Generate key and host at `https://[domain]/[key].txt`",
+    "sources": [
+      "IndexNow notifies search engines of content changes instantly. Supported by Bing (powers Copilot), Yandex, Seznam. Not supported by Google (uses its own crawl scheduling). Sieve Anti-pattern #763: \"Waiting for standard crawl cycles instead of IndexNow\" for time-sensitive content."
+    ]
+  },
+  {
+    "check_id": "E-08",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "Page in XML Sitemap",
+    "description": "Verifies the audited page URL appears in the XML sitemap. Sitemap inclusion helps crawlers discover and prioritize the page; lastmod is the only useful sitemap signal.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Cross-ref page URL vs sitemap URLs",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Audited page URL appears in the sitemap",
+      "fail": "Page not found in sitemap"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "sitewide_template",
+    "fix_template": "Add page URL to sitemap.xml with accurate lastmod date",
+    "sources": [
+      "Sitemap inclusion helps crawlers discover and prioritize pages. Missing = page may be discovered through links but not prioritized. lastmod in sitemap is the only useful signal (Google ignores priority/changefreq)."
+    ]
+  },
+  {
+    "check_id": "E-09",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "Bing Webmaster Verification",
+    "description": "Verifies Bing site ownership markers (msvalidate.01 meta tag or BingSiteAuth.xml) are present. Bing Webmaster Tools provides the AI Performance Report with Copilot citation data.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check msvalidate.01 meta tag",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "`<meta name=\"msvalidate.01\" content=\"[key]\">` present OR BingSiteAuth.xml exists",
+      "fail": "No Bing verification detected"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "page_html",
+    "fix_template": "Add `<meta name=\"msvalidate.01\" content=\"[your key]\">` from Bing Webmaster Tools",
+    "sources": [
+      "Bing Webmaster Tools provides AI Performance Report (Feb 2026) showing Copilot citation data. Verification enables this diagnostic data. Also signals site ownership to Bing's index."
+    ]
+  },
+  {
+    "check_id": "E-10",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "ClaudeBot/ChatGPT-User/Applebot Allowed",
+    "description": "Verifies robots.txt does not block the ClaudeBot, ChatGPT-User, OAI-SearchBot, or Applebot crawlers. Each OpenAI/Anthropic/Apple bot is independently controllable, and ChatGPT accounts for 87.4% of all AI referral traffic.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "robots.txt user-agent rules",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "robots.txt has no Disallow for ClaudeBot, ChatGPT-User, OAI-SearchBot, Applebot",
+      "warn": "Some but not all are allowed",
+      "fail": "Multiple AI crawlers blocked"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "sitewide_template",
+    "fix_template": "Ensure all AI crawlers are allowed. Note: blocking ChatGPT-User is ineffective since 2025.",
+    "sources": [
+      "ChatGPT-User NO LONGER respects robots.txt (2025 policy change). Blocking GPTBot does NOT block OAI-SearchBot. Each OpenAI/Anthropic/Apple bot is independently controllable. ChatGPT = 87.4% of all AI referral traffic."
+    ]
+  },
+  {
+    "check_id": "E-11",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "Content Not Behind Paywall/Login",
+    "description": "Verifies primary content is accessible without login, paywall, or authentication. AI crawlers cannot authenticate, so login-gated content is completely invisible to GPTBot, PerplexityBot, and ClaudeBot.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "Check for login gates, paywall indicators, authentication requirements",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "All primary content is accessible without login, paywall, or authentication",
+      "warn": "Some content gated but primary answer content is accessible",
+      "fail": "Core content requires login or payment to access"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "cms_constraint",
+    "fix_template": "Make core informational content freely accessible. Use paywall only for premium/extended content. If paywall required, implement `isAccessibleForFree` schema property and Google's paywall structured data.",
+    "sources": [
+      "Sieve AP #810 (high): \"Placing primary content behind authentication gates\" — AI crawlers cannot authenticate. Login-gated content is completely invisible to GPTBot, PerplexityBot, ClaudeBot, and all AI crawlers. Even Google has limited ability to index paywalled content (requires structured paywall markup + First Click Free or flexible sampling)."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "E-12",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "No NOARCHIVE on AI-Targeted Pages",
+    "description": "Verifies no noarchive directive is set via meta robots or the X-Robots-Tag header. NOARCHIVE prevents Bing caching, limiting Copilot to URL-only citation with no rich content extraction; it does not affect Google AI Overviews.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check meta robots and X-Robots-Tag for noarchive directive",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "No `noarchive` directive in meta robots tag or HTTP X-Robots-Tag header",
+      "warn": "`noarchive` present but page is not a primary content/service page (may be intentional on sensitive pages)",
+      "fail": "`noarchive` present on a page intended for AI citation (service page, blog, product page)"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "page_html",
+    "fix_template": "Remove `noarchive` from meta robots. Change `<meta name=\"robots\" content=\"noarchive\">` to `<meta name=\"robots\" content=\"index, follow, max-snippet:-1\">`. If noarchive is set via HTTP header (X-Robots-Tag: noarchive), remove it from server config.",
+    "sources": [
+      "Sieve Rule #1424 (Bing, 0.98): \"NOARCHIVE blocks Copilot citation.\" The noarchive directive prevents Bing from caching the page, which severely limits Copilot to URL-only citation — no rich content extraction, no answer blocks. Sieve AP#766 (high): \"Applying NOARCHIVE Meta Tag to Content Intended for Copilot Citation.\" Note: noarchive does NOT affect Google AI Overviews (confirmed by Sieve Rule #1468, 0.93)."
+    ]
+  },
+  {
+    "check_id": "E-13",
+    "check_version": 1,
+    "category": "E",
+    "category_name": "AEO — Discovery",
+    "name": "CCBot / LLM Training Crawler Access",
+    "description": "Verifies robots.txt does not block CCBot (Common Crawl), the dataset underlying training of GPT-4, Claude, Llama, and most foundation LLMs. Blocking CCBot means the brand won't exist in future models' training data — training-time recognition, distinct from inference-time citation.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check robots.txt for CCBot Disallow or wildcard blocks",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "robots.txt has no Disallow for CCBot (Common Crawl), OR explicitly allows CCBot",
+      "warn": "robots.txt uses wildcard `Disallow: /` that covers CCBot but no explicit exception",
+      "fail": "robots.txt explicitly blocks CCBot (`User-agent: CCBot / Disallow: /`) OR the site is excluded from Common Crawl index"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "sitewide_template",
+    "fix_template": "Add to robots.txt: `User-agent: CCBot\\nAllow: /`. If wildcard `Disallow: /` is set, add explicit `Allow: /` for CCBot. Note: CCBot respects robots.txt, unlike some other AI crawlers.",
+    "sources": [
+      "Common Crawl (CCBot) is the underlying dataset used to train GPT-4, Claude, Llama, and most foundation LLMs. Blocking CCBot means your brand won't exist in the training data of future AI models. Sieve Rule #2016 (amsive.com, 0.95): \"AI Crawler Robots.txt Access Rule — If robots.txt blocks CCBot from accessing the site, the site is excluded from Common Crawl dataset.\" Unlike real-time AI crawlers (GPTBot, PerplexityBot), CCBot access affects how future AI models KNOW about your brand, not just how current ones retrieve it. Both matter: CCBot affects training-time brand recognition; GPTBot/PerplexityBot/ClaudeBot affect inference-time citation."
+    ]
+  }
+]

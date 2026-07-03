@@ -1,0 +1,268 @@
+[
+  {
+    "check_id": "B-01",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "TTFB Under Threshold",
+    "description": "Measures Time To First Byte. AI crawlers make one request and move on — slow TTFB risks crawler abandonment; traditional SEO treats TTFB > 3s as Poor.",
+    "applies_to": ["all"],
+    "method": "measured",
+    "method_detail": "Chrome timing or WebFetch response",
+    "badge": "measured",
+    "criteria": {
+      "pass": "With Lighthouse: TTFB < 800ms measured. Without Lighthouse: WebFetch responds within expected timeframe (no timeout)",
+      "warn": "With Lighthouse: TTFB 800ms-2000ms",
+      "fail": "With Lighthouse: TTFB > 2000ms. Without Lighthouse: WebFetch times out or shows significant delay"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "sitewide_template",
+    "fix_template": "Optimize server response — caching, CDN, database query optimization, reduce server-side processing",
+    "sources": [
+      "AI crawlers make one request and move on. TTFB > 800ms risks AI crawler abandonment. Target < 200ms for optimal AI crawler access. Traditional SEO: TTFB > 3s is \"Poor\" per Google."
+    ]
+  },
+  {
+    "check_id": "B-02",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "No Render-Blocking Resources",
+    "description": "Verifies the head contains no synchronous scripts or unconditioned stylesheets that block initial render. Render-blocking resources delay LCP — a minor ranking signal through Core Web Vitals.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Script without async/defer, stylesheet in head",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "No `<script>` tags without `async` or `defer` in `<head>`, no `<link rel=\"stylesheet\">` without `media` queries in `<head>` that block initial render",
+      "warn": "1-2 render-blocking resources",
+      "fail": "3+ render-blocking scripts or stylesheets in head"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "page_html",
+    "fix_template": "Add `async` or `defer` to script tags. Use `media=\"print\"` with `onload` swap for non-critical CSS.",
+    "sources": [
+      "Render-blocking resources delay LCP. Minor ranking signal through CWV. More important for user experience than rankings."
+    ]
+  },
+  {
+    "check_id": "B-03",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "Images Use Modern Formats",
+    "description": "Verifies images are served as WebP/AVIF/SVG rather than legacy JPEG/PNG. Modern formats reduce image weight 25-50%, improving LCP and Core Web Vitals.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check img src extensions for webp/avif",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "All `<img>` src attributes use .webp, .avif, or .svg",
+      "warn": "Mix of modern and legacy formats (.jpg, .png)",
+      "fail": "All images are legacy formats with no `<picture>` fallback"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "sitewide_template",
+    "fix_template": "Convert images to WebP. Use `<picture>` element for fallback: `<picture><source srcset=\"img.webp\" type=\"image/webp\"><img src=\"img.jpg\"></picture>`",
+    "sources": [
+      "WebP/AVIF reduce image weight 25-50% vs JPEG/PNG. Reduces page weight, improves LCP. Not a direct ranking signal but contributes to CWV thresholds."
+    ]
+  },
+  {
+    "check_id": "B-04",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "Lazy Loading on Below-Fold Images",
+    "description": "Verifies below-fold images use native lazy loading to reduce initial page weight. Above-fold images must NOT be lazy-loaded (that hurts LCP).",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check loading=\"lazy\" on images after first 2",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Images after the first 2 have `loading=\"lazy\"` attribute",
+      "warn": "Some below-fold images lack lazy loading",
+      "fail": "No lazy loading on any images (and page has 5+ images)",
+      "na": "Page has fewer than 3 images"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "page_html",
+    "fix_template": "Add `loading=\"lazy\"` to all img tags except the first 1-2 (hero/above-fold)",
+    "sources": [
+      "Lazy loading reduces initial page weight. Do NOT lazy-load above-fold images (hurts LCP). Native `loading=\"lazy\"` supported by all modern browsers."
+    ]
+  },
+  {
+    "check_id": "B-05",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "No Large Inline CSS/JS Blocks",
+    "description": "Verifies the page has no large inline style/script blocks. Large inline blocks bloat the HTML document, slowing the initial response; they should be external and cacheable.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check inline style/script blocks > 5KB",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "No inline `<style>` or `<script>` blocks > 5KB",
+      "warn": "1 inline block > 5KB",
+      "fail": "Multiple inline blocks > 5KB or any > 20KB"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "sitewide_template",
+    "fix_template": "Move inline CSS/JS to external files with proper caching headers",
+    "sources": [
+      "Large inline blocks increase HTML document size, slow TTFB for the HTML response. Should be external and cacheable."
+    ]
+  },
+  {
+    "check_id": "B-06",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "DOM Depth Not Excessive",
+    "description": "Measures maximum DOM nesting depth. Deep DOM increases rendering cost; ranking impact is negligible but UX impact is measurable on low-end devices.",
+    "applies_to": ["all"],
+    "method": "measured",
+    "method_detail": "Chrome MCP DOM analysis",
+    "badge": "measured",
+    "criteria": {
+      "pass": "Max DOM nesting depth < 15 levels",
+      "warn": "Depth 15-20 levels",
+      "fail": "Depth > 20 levels",
+      "na": "Cannot measure without Chrome MCP"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "cms_constraint",
+    "fix_template": "Flatten nested divs. Reduce wrapper elements. Use CSS Grid/Flexbox instead of nested containers.",
+    "sources": [
+      "Deep DOM increases rendering cost. Google Lighthouse flags depth > 32 as excessive. Practical impact on rankings: negligible. UX impact: measurable on low-end devices."
+    ]
+  },
+  {
+    "check_id": "B-07",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "Compression Enabled",
+    "description": "Verifies the response is served with gzip or Brotli compression. Compression cuts transfer size 60-80%; AI crawlers make 3.6x more requests than traditional crawlers, so uncompressed responses risk timeouts at scale.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Content-Encoding header",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Response includes `Content-Encoding: gzip` or `Content-Encoding: br` (Brotli)",
+      "fail": "No Content-Encoding header or `Content-Encoding: identity`"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "sitewide_template",
+    "fix_template": "Enable Gzip/Brotli at server/CDN level. Most hosting platforms support this via configuration, not code changes.",
+    "sources": [
+      "Compression reduces transfer size 60-80%. AI crawlers making 3.6x more requests than traditional crawlers — uncompressed responses increase server load and risk timeouts at scale."
+    ]
+  },
+  {
+    "check_id": "B-08",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "Cache-Control Headers",
+    "description": "Verifies the response carries a Cache-Control header with a positive max-age. Caching reduces repeat-visit load times and server load; a UX/infrastructure benefit, not a ranking signal.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Cache-Control header with max-age",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Response includes `Cache-Control` header with `max-age` > 0",
+      "warn": "Cache-Control present but max-age = 0 or no-cache",
+      "fail": "No Cache-Control header at all"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "sitewide_template",
+    "fix_template": "Add `Cache-Control: public, max-age=3600` (or longer for static assets)",
+    "sources": [
+      "Caching reduces repeat-visit load times and server load. Not a ranking signal. UX and infrastructure benefit."
+    ]
+  },
+  {
+    "check_id": "B-09",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "No Mixed Content",
+    "description": "Verifies no http:// resources are loaded on an HTTPS page. Mixed content triggers browser warnings, Chrome blocks mixed active content, and it erodes HTTPS trust signals.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Scan for http:// in src/href on HTTPS page",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Zero instances of `http://` in `src`, `href`, `action` attributes on an HTTPS page",
+      "fail": "Any `http://` resource loaded on HTTPS page"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "page_html",
+    "fix_template": "Replace all `http://` references with `https://` or protocol-relative `//`",
+    "sources": [
+      "Mixed content triggers browser warnings. Chrome blocks mixed active content (scripts). Erodes trust signals. Google considers HTTPS implementation quality."
+    ]
+  },
+  {
+    "check_id": "B-10",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "Core Web Vitals Indicators",
+    "description": "Measures LCP, CLS, and INP against Google's Good/Needs-Improvement/Poor thresholds. CWV is a threshold signal, not a gradient — the ranking benefit caps at Good.",
+    "applies_to": ["all"],
+    "method": "measured",
+    "method_detail": "Chrome MCP performance API (LCP, CLS, INP)",
+    "badge": "measured",
+    "criteria": {
+      "pass": "With Lighthouse: LCP <= 2.5s AND CLS <= 0.1 AND INP <= 200ms (all \"Good\")",
+      "warn": "With Lighthouse: any metric in \"Needs Improvement\" range",
+      "fail": "With Lighthouse: any metric in \"Poor\" range (LCP > 4s OR CLS > 0.25 OR INP > 500ms)",
+      "na": "Without Lighthouse: cannot measure — note in report"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "sitewide_template",
+    "fix_template": "Depends on failing metric. LCP: optimize largest image/text block. CLS: add dimensions to images/embeds. INP: reduce JavaScript execution time.",
+    "sources": [
+      "CWV is a threshold signal, not a gradient. Benefit caps at \"Good\" — no ranking boost beyond. Pages at #1 only 10% more likely to pass CWV than #9 (Dollar Pocket 10M study). INP replaced FID March 2024. Measured at 75th percentile of CrUX field data, not Lighthouse lab data."
+    ]
+  },
+  {
+    "check_id": "B-11",
+    "check_version": 1,
+    "category": "B",
+    "category_name": "Performance",
+    "name": "Image Dimensions Specified",
+    "description": "Verifies img tags declare explicit width and height. Images without dimensions are the #1 cause of CLS because the browser cannot reserve space before the image loads.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check img tags for width/height attributes",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "All `<img>` tags have explicit `width` and `height` attributes (or CSS equivalent)",
+      "warn": "1-3 images missing dimensions",
+      "fail": "4+ images without width/height (or > 50% of images)",
+      "na": "Page has fewer than 2 images"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "page_html",
+    "fix_template": "Add `width` and `height` attributes matching the image's intrinsic dimensions: `<img src=\"...\" alt=\"...\" width=\"800\" height=\"450\" loading=\"lazy\">`",
+    "sources": [
+      "Images without explicit dimensions are the #1 cause of CLS (Cumulative Layout Shift). Browser cannot reserve space until image loads, causing layout shift. Lighthouse flags this as a CLS contributor. All three major tools (Screaming Frog, Ahrefs, Lighthouse) check this."
+    ]
+  }
+]

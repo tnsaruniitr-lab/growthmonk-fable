@@ -1,0 +1,320 @@
+[
+  {
+    "check_id": "C-01",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "Heading Hierarchy Logical",
+    "description": "Verifies headings follow the H1 → H2 → H3 sequence without skipped levels. Proper hierarchy helps screen readers, search engine parsing, and AI extractors that use headings as section boundaries.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Trace H1→H2→H3, flag skipped levels",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Headings follow H1 → H2 → H3 sequence with no skipped levels (no H1 → H3)",
+      "warn": "One skipped level (e.g., H2 → H4)",
+      "fail": "Multiple skipped levels or no logical structure"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Restructure headings to follow sequential order. Each H3 must be under an H2. Each H4 under an H3.",
+    "sources": [
+      "Proper heading hierarchy helps screen readers and search engine content parsing. AI extractors use headings to identify section boundaries and topics."
+    ]
+  },
+  {
+    "check_id": "C-02",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "Primary Keyword in First 100 Words",
+    "description": "Verifies the primary keyword (from title or target query) appears in the opening 100 words of body text. Google's passage-level indexing and AI answer selection weight opening content heavily.",
+    "applies_to": ["all"],
+    "method": "llm",
+    "method_detail": "Extract first 100 body words, check keyword",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "Primary keyword (from title or target query) appears in the first 100 words of body text",
+      "warn": "Close semantic variant appears but not exact keyword",
+      "fail": "Neither keyword nor variant in first 100 words"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "content_restructure",
+    "fix_template": "Incorporate primary keyword naturally in the opening paragraph",
+    "sources": [
+      "Google uses passage-level indexing — first 100 words strongly signal page topic. AI extractors weight opening content heavily for answer selection."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "C-03",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "Three or More Internal Links",
+    "description": "Verifies the body content contains at least 3 internal links. Internal links distribute PageRank, help crawlers discover pages, and signal topical relationships; pages without them are potential orphans.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Count same-domain anchors",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "3+ `<a href>` links pointing to same-domain pages in body content (not nav/footer)",
+      "warn": "1-2 internal links",
+      "fail": "Zero internal links in body content"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Add contextual internal links to related pages within body content",
+    "sources": [
+      "Internal links distribute PageRank, help crawlers discover pages, and signal topical relationships. Pages with no internal links are potential orphans."
+    ]
+  },
+  {
+    "check_id": "C-04",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "Descriptive Anchor Text",
+    "description": "Verifies anchor text is descriptive rather than generic (\"click here\", \"read more\"). Google uses anchor text to understand linked page context; generic anchors provide zero context.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Flag \"click here\", \"read more\", \"here\", \"link\"",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "Zero anchors with text \"click here\", \"read more\", \"here\", \"link\", \"this\" as standalone text",
+      "warn": "1-2 non-descriptive anchors",
+      "fail": "3+ non-descriptive anchors"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Replace \"Click here to learn more\" with \"[Topic name] guide\" or \"[Descriptive phrase]\"",
+    "sources": [
+      "Google uses anchor text to understand linked page context. \"Click here\" provides zero context. Descriptive anchors help both users and search engines."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "C-05",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "All Images Have Alt Text",
+    "description": "Verifies every img tag has alt text (decorative images may use alt=\"\"). Required for accessibility (WCAG 2.1), used by Google Image Search, and may aid AI content understanding.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Count img without alt or alt=\"\"",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "All `<img>` tags have non-empty `alt` attribute (decorative images may use `alt=\"\"`)",
+      "warn": "1-3 images missing alt text",
+      "fail": "4+ images missing alt text or > 50% of images lack alt"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "page_html",
+    "fix_template": "Add descriptive `alt=\"[What the image shows]\"` to each img tag",
+    "sources": [
+      "Alt text is required for accessibility (WCAG 2.1). Used by Google Image Search for indexing. AI crawlers may use alt text for content understanding."
+    ]
+  },
+  {
+    "check_id": "C-06",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "Sufficient Word Count",
+    "description": "Verifies word count meets the page-type minimum and is calibrated against the competitor median. Insufficient content means fewer passages available for passage-level ranking.",
+    "applies_to": ["all"],
+    "method": "comparative",
+    "method_detail": "Word count vs page-type threshold AND competitor median",
+    "badge": "comparative",
+    "criteria": {
+      "pass": "Word count meets page-type threshold AND is within 50% of competitor median. Page-type thresholds: Homepage 200+, Landing 500+, Blog/Article 800+, Product 300+, Service 500+, HowTo 600+",
+      "warn": "Meets page-type threshold but significantly below competitor median (> 50% less)",
+      "fail": "Below page-type minimum threshold (Homepage 200+, Landing 500+, Blog/Article 800+, Product 300+, Service 500+, HowTo 600+)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Expand content to cover topics competitors address that you don't. Don't pad — add substance.",
+    "sources": [
+      "Passage-level ranking means word count alone doesn't win. But insufficient content means fewer passages to rank for. Competitor median provides real-world calibration. A 1,500-word page is fine absolutely but weak if competitors average 4,500."
+    ]
+  },
+  {
+    "check_id": "C-07",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "No Keyword Stuffing",
+    "description": "Verifies primary keyword density stays below 3%. Density above 4% is a negative signal; the GEO paper found keyword stuffing had a negative impact on AI visibility.",
+    "applies_to": ["blog", "article", "howto"],
+    "method": "deterministic",
+    "method_detail": "Primary keyword occurrences / total words",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "Primary keyword density < 3%",
+      "warn": "Density 3-4%",
+      "fail": "Density > 4%",
+      "na": "Applies to blog, article, howto only. Not scored for homepage/landing/product."
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Replace some keyword instances with synonyms or related terms",
+    "sources": [
+      "Outdated as a primary concern — Google's semantic understanding handles synonyms. But density > 4% is still a negative signal. GEO paper: keyword stuffing had NEGATIVE impact on visibility."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "C-08",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "Outbound Links to Authoritative Sources",
+    "description": "Verifies the body content links out to authoritative external sources. The GEO paper found \"Cite Sources\" is the highest-impact visibility strategy (30-40% boost), and AI engines cross-check claims against multiple sources.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Count external links in body",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "2+ outbound links to authoritative external sources (.gov, .edu, academic, official documentation, recognized industry sources) in body content",
+      "warn": "1 outbound link",
+      "fail": "Zero outbound links in body content"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "content_restructure",
+    "fix_template": "Add 2-3 outbound links to studies, official documentation, or authoritative sources that support claims made in the content",
+    "sources": [
+      "GEO paper (KDD 2024): \"Cite Sources\" strategy = 30-40% visibility boost — the highest-impact GEO strategy. Outbound citations signal trust and enable AI cross-reference verification. All AI engines cross-check claims against multiple sources."
+    ]
+  },
+  {
+    "check_id": "C-09",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "Clean URL Structure",
+    "description": "Verifies the URL path is short, lowercase, hyphenated, and free of session IDs or non-readable identifiers. A minor signal — clean URLs aid user comprehension and sharing.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Path length < 75, hyphens, no IDs",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "URL path < 75 characters, uses hyphens, lowercase, no special characters or session IDs",
+      "warn": "Path 75-100 characters or has underscores",
+      "fail": "Path > 100 characters, contains query parameters as primary URL, or non-readable IDs"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "sitewide_template",
+    "fix_template": "Restructure URL to: `https://domain.com/[category]/[descriptive-slug]`",
+    "sources": [
+      "Minor signal. Clean URLs are better for user comprehension and sharing. Google handles ugly URLs fine technically."
+    ]
+  },
+  {
+    "check_id": "C-10",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "Open Graph Tags Complete",
+    "description": "Verifies og:title, og:description, og:image, and og:type are all present. Not a ranking signal but critical for social sharing appearance and CTR; AI systems may reference OG data for entity understanding.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check og:title, og:description, og:image, og:type",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "All four present: `og:title`, `og:description`, `og:image`, `og:type`",
+      "warn": "2-3 of four present",
+      "fail": "0-1 of four present"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "page_html",
+    "fix_template": "Add: `<meta property=\"og:title\" content=\"[Title]\">` + description + image + type",
+    "sources": [
+      "Not a ranking signal. Critical for social sharing appearance. Affects CTR from social platforms. AI systems may reference OG data for entity understanding."
+    ]
+  },
+  {
+    "check_id": "C-11",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "Twitter Card Tags",
+    "description": "Verifies twitter:card markup is present, preferably summary_large_image. A minor signal affecting appearance when shared on X/Twitter; not a ranking signal.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Check twitter:card, twitter:title",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "`twitter:card` present (preferably `summary_large_image`)",
+      "warn": "Twitter card present but using `summary` instead of `summary_large_image`",
+      "fail": "No Twitter card tags"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "page_html",
+    "fix_template": "`<meta name=\"twitter:card\" content=\"summary_large_image\">`",
+    "sources": [
+      "Minor. Affects appearance when shared on X/Twitter. Not a ranking signal."
+    ]
+  },
+  {
+    "check_id": "C-12",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "Visible Publication/Update Date",
+    "description": "Verifies a publication or update date is both visible in content and present in schema. Freshness is a primary AI citation signal — Perplexity gives 3.2x more citations to content under 30 days old.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Scan content for date patterns + check schema dates",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "Date visible on page (in content, not just schema) AND datePublished or dateModified in schema",
+      "warn": "Date in schema but not visible on page, or visible but not in schema",
+      "fail": "No date anywhere (neither visible nor schema)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "page_html",
+    "fix_template": "Add visible \"Published: [date]\" or \"Last updated: [date]\" near top of content. Add datePublished/dateModified to schema.",
+    "sources": [
+      "Google API leak: three date signals (`bylineDate`, `syntacticDate`, `semanticDate`). Perplexity: content within 30 days gets 3.2x more citations. 83% of commercial AI citations from pages < 12 months old."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "C-14",
+    "check_version": 1,
+    "category": "C",
+    "category_name": "On-Page SEO",
+    "name": "No Broken External Links",
+    "description": "Verifies outbound links in the body content resolve with 200 status. Broken citations are worthless for AI cross-reference verification and erode trust signals.",
+    "applies_to": ["all"],
+    "method": "measured",
+    "method_detail": "WebFetch each outbound link, check for 4xx/5xx",
+    "badge": "measured",
+    "criteria": {
+      "pass": "All outbound links in body content return 200 status",
+      "warn": "1 broken outbound link (4xx/5xx)",
+      "fail": "2+ broken outbound links",
+      "na": "No outbound links (page fails C8 instead)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Replace broken links with current URLs to the same or equivalent authoritative sources. If the source no longer exists, find an alternative or remove the citation.",
+    "sources": [
+      "Broken outbound links erode trust signals. If the page cites a source that no longer exists, the citation is worthless for AI cross-reference verification. All three major tools (Screaming Frog, Ahrefs, Lighthouse) check broken links. GEO paper: \"Cite Sources\" is the #1 visibility strategy — but only if the citations actually work."
+    ]
+  }
+]

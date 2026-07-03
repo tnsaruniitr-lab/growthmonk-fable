@@ -1,0 +1,232 @@
+[
+  {
+    "check_id": "G-01",
+    "check_version": 1,
+    "category": "G",
+    "category_name": "AEO — Trust",
+    "source_id": "G1",
+    "name": "Author Byline Visible",
+    "description": "Verifies a visible author name in page content (not just schema). Visible authorship is a primary trust signal for E-E-A-T-driven AI citation.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Scan visible content for author name pattern",
+    "badge": "heuristic",
+    "criteria": {
+      "pass": "Author name visible in page content (not just schema)",
+      "fail": "No visible author attribution",
+      "na": "Homepage, product pages"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "content_restructure",
+    "fix_template": "Add visible \"By [Author Name]\" near the title/date",
+    "sources": [
+      "96% of AI Overview citations from E-E-A-T sources. Visible authorship is a primary trust signal. Schema-only author (invisible to users) is weaker than visible byline."
+    ],
+    "inferred": ["method"]
+  },
+  {
+    "check_id": "G-02",
+    "check_version": 1,
+    "category": "G",
+    "category_name": "AEO — Trust",
+    "source_id": "G2",
+    "name": "Author Schema With Credentials/sameAs",
+    "description": "Checks that the author's Person schema includes sameAs external profile links plus jobTitle or description. sameAs verification lets AI systems confirm expertise; a name-only Person schema is an unverifiable claim.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Person schema has sameAs or jobTitle",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Person schema has `sameAs` array with 1+ external profile URLs AND (`jobTitle` OR `description`)",
+      "warn": "Person schema exists but missing sameAs or credentials",
+      "fail": "No Person schema for author, or Person with name only",
+      "na": "Pages without authorship expectation"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Add `\"sameAs\": [\"https://linkedin.com/in/...\", \"https://twitter.com/...\"], \"jobTitle\": \"[Title]\"`",
+    "sources": [
+      "Author entity verification through sameAs links enables AI systems to confirm expertise. Empty Person schema (name only) is an unverifiable claim."
+    ]
+  },
+  {
+    "check_id": "G-03",
+    "check_version": 1,
+    "category": "G",
+    "category_name": "AEO — Trust",
+    "source_id": "G3",
+    "name": "Outbound Citations to Primary Sources",
+    "description": "Counts outbound links to authoritative external domains (.gov, .edu, academic, official documentation). Citing sources is the highest-impact GEO strategy because AI engines cross-reference claims.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Count links to .gov/.edu/academic/official domains",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "3+ outbound links to authoritative external domains (.gov, .edu, academic journals, official documentation, recognized data sources)",
+      "warn": "1-2 outbound citations",
+      "fail": "Zero outbound links to external authoritative sources"
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "content_restructure",
+    "fix_template": "Add inline citations: `According to [Source Name](https://...), [factual claim].`",
+    "sources": [
+      "GEO paper: \"Cite Sources\" = 30-40% visibility boost (highest-impact strategy, universally effective). All AI engines cross-reference claims. Outbound citations enable corroboration."
+    ]
+  },
+  {
+    "check_id": "G-04",
+    "check_version": 1,
+    "category": "G",
+    "category_name": "AEO — Trust",
+    "source_id": "G4",
+    "name": "Publication Date Visible AND in Schema",
+    "description": "Verifies the publication date appears both as visible page text and as datePublished in schema. Visible date gives user transparency; schema date is machine-readable for AI systems — both together are strongest.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Visible date on page + datePublished in schema",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Date visible on page (text like \"Published: Jan 15, 2026\") AND datePublished in schema",
+      "warn": "Date in one location but not both",
+      "fail": "No date anywhere",
+      "na": "Homepage, evergreen product pages"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "page_html",
+    "fix_template": "Add visible date near title AND `\"datePublished\": \"2026-01-15\"` in schema",
+    "sources": [
+      "Google API leak: three date signals. Visible date provides transparency to users. Schema date is machine-readable for AI systems. Both together are strongest."
+    ]
+  },
+  {
+    "check_id": "G-05",
+    "check_version": 1,
+    "category": "G",
+    "category_name": "AEO — Trust",
+    "source_id": "G5",
+    "name": "dateModified Visible AND in Schema",
+    "description": "Verifies a visible \"Updated\" indicator plus a schema dateModified distinct from datePublished. dateModified is the primary freshness signal for AI engines.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Visible \"Updated\" text + dateModified in schema",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "\"Updated\" or \"Last modified\" visible on page AND dateModified in schema with date different from datePublished",
+      "warn": "dateModified in schema only, not visible",
+      "fail": "No dateModified anywhere"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "page_html",
+    "fix_template": "Add visible \"Last updated: [date]\" AND `\"dateModified\": \"2026-04-10\"` in schema. Update both when content changes.",
+    "sources": [
+      "Perplexity: content within 30 days gets 3.2x more citations. 83% of commercial AI citations from pages < 12 months old. dateModified is THE freshness signal for AI engines."
+    ]
+  },
+  {
+    "check_id": "G-06",
+    "check_version": 1,
+    "category": "G",
+    "category_name": "AEO — Trust",
+    "source_id": "G6",
+    "name": "Organization Schema With sameAs",
+    "description": "Checks the Organization schema for a sameAs array of resolving social profile URLs. AI systems use sameAs for entity disambiguation; missing sameAs weakens entity recognition.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Organization @type has sameAs array",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Organization schema has `sameAs` array with 2+ social profile URLs that resolve",
+      "warn": "Organization has sameAs with 1 URL",
+      "fail": "Organization schema has no sameAs, or no Organization schema"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "schema",
+    "fix_template": "Add `\"sameAs\": [\"https://linkedin.com/company/...\", \"https://twitter.com/...\", \"https://github.com/...\"]`",
+    "sources": [
+      "sameAs links establish entity identity across platforms. AI systems use sameAs for entity disambiguation. Missing sameAs = weaker entity recognition."
+    ]
+  },
+  {
+    "check_id": "G-07",
+    "check_version": 1,
+    "category": "G",
+    "category_name": "AEO — Trust",
+    "source_id": "G7",
+    "name": "Privacy/Terms Accessible",
+    "description": "Checks the footer for privacy/terms/legal links. A minor transparency signal aligned with quality rater guidelines; absence suggests a less trustworthy site.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Footer links containing privacy/terms/legal",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Footer contains links with text matching \"privacy\", \"terms\", \"legal\", or \"cookie\"",
+      "fail": "No legal links in footer"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "page_html",
+    "fix_template": "Add footer links to privacy policy and terms of service pages",
+    "sources": [
+      "Minor trust signal. Quality rater guidelines check for transparency indicators. Absence suggests less trustworthy site."
+    ]
+  },
+  {
+    "check_id": "G-08",
+    "check_version": 1,
+    "category": "G",
+    "category_name": "AEO — Trust",
+    "source_id": "G8",
+    "name": "HTTPS Valid",
+    "description": "Verifies the page loads over HTTPS without certificate errors. HTTPS is a confirmed ranking signal and AI crawlers deprioritize non-HTTPS sources.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Page loads over HTTPS",
+    "badge": "hard_evidence",
+    "criteria": {
+      "pass": "Page loads over HTTPS without certificate errors",
+      "fail": "Certificate error, expired cert, or HTTP-only"
+    },
+    "weight": 2,
+    "severity": "high",
+    "fix_type": "sitewide_template",
+    "fix_template": "Install valid SSL certificate. Configure server for HTTPS.",
+    "sources": [
+      "HTTPS is a confirmed ranking signal (since 2014). All major browsers warn users on HTTP sites. AI crawlers deprioritize non-HTTPS sources."
+    ]
+  },
+  {
+    "check_id": "G-09",
+    "check_version": 1,
+    "category": "G",
+    "category_name": "AEO — Trust",
+    "source_id": "G9",
+    "name": "Content Freshness Recency",
+    "description": "Grades content age from dateModified/datePublished and flags likely cosmetic timestamp updates. Content freshness is a primary signal for all AI answer engines; the age grading is deterministic while cosmetic-update detection is model judgment.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "dateModified age: < 90d pass, 90-365d warn, > 365d fail. Cosmetic update detection via LLM",
+    "badge": "hard_evidence",
+    "secondary_badge": "model_judgment",
+    "criteria": {
+      "pass": "dateModified or datePublished is < 90 days old",
+      "warn": "Date is 90-365 days old",
+      "fail": "Date is > 365 days old; OR no datePublished AND no dateModified AND no visible date → FAIL \"No freshness signal. AI engines cannot determine if this content is current.\" (overlaps with G4/G5 but specifically checks for recency assessment capability)",
+      "cosmetic_update_detection": "If dateModified is recent (< 30 days) but content references outdated data (years, statistics, \"in 2024\" language, discontinued products), flag as MODEL JUDGMENT warning: \"Possible cosmetic timestamp update without substantive content changes (Sieve AP#799).\""
+    },
+    "weight": 3,
+    "severity": "high",
+    "fix_type": "content_restructure",
+    "fix_template": "If no date: Add `\"dateModified\": \"YYYY-MM-DD\"` to schema + visible \"Last updated: [date]\" on page → fix type: PAGE HTML FIX. If date is stale: Actually update the content — refresh statistics, update examples, add new information — THEN update dateModified → fix type: CONTENT RESTRUCTURE. Never just change the date without changing content (Sieve AP#799: \"Cosmetic timestamp updates\" — risk: medium)",
+    "sources": [
+      "50% of AI-cited content is < 13 weeks old (2026 web data). Perplexity: 3.2x citation boost for content < 30 days. 83% of commercial AI citations from pages < 12 months. Content freshness is a primary signal for ALL AI answer engines, not just a nice-to-have."
+    ],
+    "inferred": ["badge"],
+    "notes": "Source assigns a dual badge (HARD EVIDENCE for date recency + MODEL JUDGMENT for cosmetic-update detection); collapsed to hard_evidence as primary with secondary_badge recording the model-judgment component. Fix type is conditional in the source: page_html when no date exists, content_restructure when the date is stale."
+  }
+]

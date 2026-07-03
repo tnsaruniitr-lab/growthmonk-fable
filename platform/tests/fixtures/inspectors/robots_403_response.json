@@ -1,0 +1,9 @@
+{
+  "comment": "Simulated robots.txt fetch returning HTTP 403. Body is a typical WAF block page, not robots syntax. The parser must not crash and should report 'robots_reachable' as FAIL with evidence 'HTTP 403'.",
+  "http_status": 403,
+  "body": "<html><head><title>Access Denied</title></head><body><h1>Access Denied</h1><p>Your request has been blocked by our firewall.</p></body></html>",
+  "expected_checks": {
+    "robots_reachable": {"status": "fail", "evidence_contains": "HTTP 403"},
+    "target_path_not_disallowed": {"status": "warn", "note": "Cannot evaluate — robots.txt inaccessible, permissive default applied"}
+  }
+}
