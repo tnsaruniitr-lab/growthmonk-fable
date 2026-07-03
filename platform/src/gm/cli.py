@@ -195,6 +195,10 @@ def worker(
     from gm.audit.group import handle_audit_group
     from gm.audit.pipeline import handle_audit_page
     from gm.content.briefs import handle_generate_brief
+    from gm.content.fixcloser import handle_close_fixes
+    from gm.delivery.receipts import handle_assemble_receipt, handle_compute_delta
+    from gm.delivery.verify import handle_verify_publish
+    from gm.delivery.wordpress import handle_publish
     from gm.intel.detectors import handle_compute_queue
     from gm.intel.gsc_ingest import handle_gsc_backfill, handle_gsc_daily, handle_gsc_initial
 
@@ -209,6 +213,11 @@ def worker(
         "compute_queue": handle_compute_queue,
         "compare_serp": handle_compare_serp,
         "generate_brief": handle_generate_brief,
+        "close_fixes": handle_close_fixes,
+        "publish": handle_publish,
+        "verify_publish": handle_verify_publish,
+        "compute_delta": handle_compute_delta,
+        "assemble_receipt": handle_assemble_receipt,
     }
     stop = threading.Event()
     if with_scheduler:
@@ -364,6 +373,148 @@ def queue(domain: str, kind: str = typer.Option(None, help="Filter by detector k
         basis = r["at_stake"].get("basis", "?")
         tgt = r["target"].get("query") or r["target"].get("page") or ""
         typer.echo(f"{r['kind']:18} +{gain or '?':>6} clicks/mo [{basis}]  {tgt[:70]}")
+
+
+@site_app.command("set-author")
+def site_set_author(
+    domain: str,
+    name: str = typer.Option(...),
+    title: str = typer.Option(None),
+    same_as: list[str] = typer.Option([], "--same-as", help="LinkedIn/profile URLs"),
+    credentials: str = typer.Option(None),
+):
+    """Set the real author entity — the convergence-fix input for the fix-closer."""
+    import json as _json
+
+    author = {k: v for k, v in
+              {"name": name, "title": title, "sameAs": same_as, "credentials": credentials}.items()
+              if v}
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        conn.execute("update sites set author=%s where id=%s",
+                     (_json.dumps(author), site["id"]))
+        conn.commit()
+    typer.echo("author set")
+
+
+@app.command("close-fixes")
+def close_fixes(
+    domain: str,
+    brief_id: str = typer.Option(..., help="Approved brief to execute"),
+    kind: str = typer.Option("new"),
+    now: bool = typer.Option(False, "--now"),
+):
+    """Run the fix-closer: brief → draft (convergence inputs enforced) → registry scorecard."""
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        row = conn.execute(
+            "insert into content_items (org_id, site_id, brief_id, kind)"
+            " values (%s,%s,%s,%s) returning id",
+            (org["id"], site["id"], brief_id, kind),
+        ).fetchone()
+        ci_id = str(row["id"])
+        if now:
+            from gm.content.fixcloser import handle_close_fixes as run
+
+            class _Ctx:
+                def __init__(self, conn, job):
+                    self.conn, self.job = conn, job
+
+                def heartbeat(self):
+                    pass
+
+            class _Job:
+                id = None
+                org_id = org["id"]
+                site_id = str(site["id"])
+                payload = {"content_item_id": ci_id}
+
+            run(_Ctx(conn, _Job()))
+            d = conn.execute(
+                "select d.version, a.scores->>'overall_grade' as grade,"
+                " a.scores->>'overall_score' as score, d.human_todos"
+                " from drafts d left join audits a on a.id = d.scorecard_audit_id"
+                " where d.content_item_id=%s order by d.version desc limit 1", (ci_id,),
+            ).fetchone()
+            conn.commit()
+            typer.echo(f"content_item {ci_id} draft v{d['version']}"
+                       f" scorecard grade={d['grade']} score={d['score']}")
+            for t in (d["human_todos"] or [])[:6]:
+                typer.echo(f"  HUMAN: {t if isinstance(t, str) else t.get('note', t)}")
+        else:
+            jobs_mod.enqueue(conn, type="close_fixes", org_id=org["id"],
+                             site_id=str(site["id"]),
+                             payload={"content_item_id": ci_id},
+                             idempotency_key=f"close:{ci_id}")
+            conn.commit()
+            typer.echo(f"content_item {ci_id} enqueued (close_fixes)")
+
+
+@app.command("wp-connect")
+def wp_connect(
+    domain: str,
+    base_url: str = typer.Option(...),
+    username: str = typer.Option(...),
+    app_password: str = typer.Option(..., prompt=True, hide_input=True),
+):
+    """Connect WordPress (Application Password) with least-privilege preflight."""
+    from gm.delivery.wordpress import connect_wordpress
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        report = connect_wordpress(
+            conn, org_id=org["id"], site_id=str(site["id"]),
+            base_url=base_url, username=username, app_password=app_password,
+        )
+        conn.commit()
+    typer.echo(f"preflight ok={report.get('ok')} role={report.get('role')}")
+    for w in report.get("warnings", []):
+        typer.echo(f"  WARN: {w}")
+
+
+@app.command()
+def publish(domain: str, content_item_id: str = typer.Option(...)):
+    """Publish the latest draft to WordPress (draft-mode) + IndexNow + verify jobs."""
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        jobs_mod.enqueue(conn, type="publish", org_id=org["id"], site_id=str(site["id"]),
+                         payload={"content_item_id": content_item_id},
+                         idempotency_key=f"publish:{content_item_id}")
+        conn.commit()
+    typer.echo("publish enqueued")
+
+
+@app.command()
+def receipt(
+    domain: str,
+    period: str = typer.Option(None, help="YYYY-MM, default current month"),
+    out: Path = typer.Option(None),
+):
+    """Assemble + render the monthly Delta Receipt."""
+    from gm.audit.registry import load_registry
+    from gm.delivery.receipts import assemble_site_receipt, render_receipt_html
+
+    period = period or dt.date.today().strftime("%Y-%m")
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        rid = assemble_site_receipt(conn, site_id=str(site["id"]), period=period)
+        row = conn.execute("select * from site_deltas where id=%s", (rid,)).fetchone()
+        conn.commit()
+    html = render_receipt_html(dict(site), row["payload"], checks_meta=load_registry().checks)
+    out = out or config.repo_root() / "ops" / "receipts" / f"{period}-{site['domain_norm']}.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(html)
+    typer.echo(f"receipt {rid}\n{out}")
 
 
 @app.command()

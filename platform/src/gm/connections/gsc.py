@@ -227,3 +227,27 @@ class GscClient:
         data = _request_json(self._client, "GET", f"{API_BASE}/sites", headers=self._headers())
         entries = data.get("siteEntry")
         return entries if isinstance(entries, list) else []
+
+    def inspect_url(self, url: str) -> dict:
+        """URL Inspection API verdict for `url` under this property (wave-3 append).
+
+        POST v1 urlInspection/index:inspect (a different API version than the
+        v3 Search Analytics base — the full endpoint is built here). Returns a
+        flat summary of indexStatusResult; raises GscAuthError/GscError per the
+        module's shared transport rules.
+        """
+        endpoint = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect"
+        payload = {"inspectionUrl": url, "siteUrl": self.property_url}
+        data = _request_json(
+            self._client, "POST", endpoint, headers=self._headers(), payload=payload
+        )
+        result = data.get("inspectionResult") or {}
+        idx = result.get("indexStatusResult") or {}
+        return {
+            "verdict": idx.get("verdict"),
+            "coverage_state": idx.get("coverageState"),
+            "indexing_state": idx.get("indexingState"),
+            "robots_txt_state": idx.get("robotsTxtState"),
+            "last_crawl_time": idx.get("lastCrawlTime"),
+            "inspection_link": result.get("inspectionResultLink"),
+        }

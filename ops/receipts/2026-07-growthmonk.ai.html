@@ -1,0 +1,134 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Delta Receipt — growthmonk.ai — 2026-07</title><style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #FBFAF7; color: #141B1E;
+  font: 15px/1.55 "Iowan Old Style", Charter, "Palatino Linotype", Georgia, serif; }
+main { max-width: 880px; margin: 0 auto; padding: 40px 24px 64px; }
+.sans { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+code, .mono, .num { font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; }
+
+/* Masthead — ledger double rule + grade stamp */
+.masthead { border-top: 3px double #141B1E; border-bottom: 1px solid #141B1E;
+  padding: 18px 0 20px; display: flex; gap: 24px; align-items: flex-start;
+  justify-content: space-between; flex-wrap: wrap; }
+.eyebrow { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 11px;
+  letter-spacing: .22em; text-transform: uppercase; color: #0E5F66; font-weight: 700;
+  margin: 0 0 8px; }
+.masthead h1 { font-size: 34px; line-height: 1.1; margin: 0 0 6px; font-weight: 700;
+  letter-spacing: -.01em; overflow-wrap: anywhere; }
+.masthead .meta { font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 12.5px; color: #5B665F; overflow-wrap: anywhere; }
+.stamp { flex: none; width: 108px; border: 2.5px solid #0E5F66; border-radius: 8px;
+  padding: 10px 8px 9px; text-align: center; color: #0E5F66;
+  transform: rotate(2deg); background: rgba(14,95,102,.035); }
+.stamp .g { font-size: 40px; font-weight: 800; line-height: 1;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif; letter-spacing: -.02em; }
+.stamp .s { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 12px;
+  margin-top: 4px; }
+.stamp .l { font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 700;
+  margin-top: 5px; border-top: 1px solid rgba(14,95,102,.4); padding-top: 4px; }
+.stamp.inconclusive { border-color: #8A948F; color: #5B665F; background: #F1F0EA; }
+
+.statrow { display: flex; gap: 34px; flex-wrap: wrap; padding: 16px 0 4px; }
+.stat .label { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: .14em; color: #8A948F; font-weight: 700; }
+.stat .value { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 24px;
+  font-weight: 600; font-variant-numeric: tabular-nums; }
+
+section { margin-top: 40px; }
+h2 { font-size: 20px; margin: 0 0 4px; letter-spacing: -.005em; }
+h2 + .sub { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 12.5px;
+  color: #5B665F; margin: 0 0 16px; }
+h3 { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 12px;
+  text-transform: uppercase; letter-spacing: .12em; color: #5B665F; margin: 28px 0 10px; }
+
+/* Fix queue — the lead section */
+ol.queue { list-style: none; counter-reset: q; margin: 0; padding: 0; }
+ol.queue li { counter-increment: q; display: flex; gap: 14px; padding: 12px 2px;
+  border-bottom: 1px solid #E4E1D8; align-items: baseline; }
+ol.queue li::before { content: counter(q, decimal-leading-zero);
+  font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 13px; color: #0E5F66;
+  font-weight: 700; flex: none; width: 26px; }
+.q-name { font-weight: 700; }
+.q-detail { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px;
+  color: #3C4740; margin-top: 2px; overflow-wrap: anywhere; }
+.q-tags { margin-left: auto; flex: none; display: flex; gap: 6px; align-items: center; }
+
+/* Category ledger bars */
+.ledger { border-top: 1px solid #141B1E; }
+.lrow { display: grid; grid-template-columns: 190px 1fr 52px; gap: 12px; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid #E4E1D8;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+.lrow .cat { color: #3C4740; }
+.bar { height: 8px; background: #EEECE4; border-radius: 4px; overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: 4px; background: #8A948F; }
+.bar > i.good { background: #2E7146; }
+.bar > i.mid { background: #B07C10; }
+.bar > i.bad { background: #B3402F; }
+.lrow .num { text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+.lrow .counts { color: #8A948F; font-size: 11px; text-align: right; }
+
+/* Findings */
+.finding { border: 1px solid #E4E1D8; border-left: 4px solid #C9C5B8; border-radius: 6px;
+  background: #fff; padding: 12px 16px; margin: 10px 0; }
+.finding.s-fail { border-left-color: #B3402F; }
+.finding.s-warn { border-left-color: #B07C10; }
+.finding.s-pass { border-left-color: #2E7146; }
+.finding.s-inconclusive, .finding.s-na, .finding.s-unknown { border-left-color: #C9C5B8; }
+.finding-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+.finding-head code { font-size: 12px; color: #5B665F; }
+.f-name { font-family: "Iowan Old Style", Charter, Georgia, serif; font-size: 15.5px;
+  font-weight: 700; }
+.pill, .chip { font-size: 10.5px; padding: 2px 9px; border-radius: 999px; font-weight: 700;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif; letter-spacing: .03em; }
+.pill { text-transform: uppercase; }
+.pill.p-fail { background: #F7E4E0; color: #8C2F22; }
+.pill.p-warn { background: #F5EBD3; color: #7C570B; }
+.pill.p-pass { background: #E2EFE5; color: #235C37; }
+.pill.p-na, .pill.p-inconclusive, .pill.p-unknown { background: #EEECE4; color: #5B665F; }
+.chip { background: #E7EEEE; color: #0B4A50; border: 1px solid #C6D8D9; }
+.chip.c-hard_evidence { background: #E2EFE5; color: #1F5230; border-color: #BFDCC8; }
+.chip.c-measured { background: #E3EDF5; color: #1F4E75; border-color: #C2D8E8; }
+.chip.c-static_rule { background: #EEECE4; color: #4A5450; border-color: #DBD7CA; }
+.chip.c-comparative { background: #F2E7F0; color: #6E3260; border-color: #E0C8DC; }
+.chip.c-heuristic { background: #F5EBD3; color: #7C570B; border-color: #E8D6A8; }
+.chip.c-model_judgment { background: #E9E6F4; color: #4A3B82; border-color: #D3CDE9; }
+.chip.c-unknown { background: #EEECE4; color: #5B665F; border-color: #DBD7CA; }
+p.note { margin: 9px 0 2px; font-size: 13.5px; color: #3C4740; white-space: pre-wrap;
+  overflow-wrap: anywhere; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+.cites { margin: 8px 0 0; padding: 8px 0 0; border-top: 1px dashed #E4E1D8;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 12px; color: #5B665F; }
+.cites b { color: #3C4740; }
+.cites a { color: #0E5F66; text-decoration: none; border-bottom: 1px solid #C6D8D9; }
+
+footer { margin-top: 48px; border-top: 3px double #141B1E; padding-top: 12px;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 11.5px;
+  color: #5B665F; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+footer .claim { font-style: italic; }
+
+@media print {
+  body { background: #fff; font-size: 12px; }
+  main { max-width: none; padding: 0; }
+  .finding, ol.queue li { break-inside: avoid; }
+  .stamp { transform: none; }
+  a { color: inherit; }
+}
+
+table.delta { width: 100%; border-collapse: collapse; margin: 8px 0;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+table.delta th { text-align: left; font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .12em; color: #8A948F; padding: 6px 8px;
+  border-bottom: 1px solid #141B1E; }
+table.delta td { padding: 7px 8px; border-bottom: 1px solid #E4E1D8;
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere; vertical-align: top; }
+.delta-up { color: #2E7146; font-weight: 700; }
+.delta-down { color: #B3402F; font-weight: 700; }
+.pill.p-beta { background: #F5EBD3; color: #7C570B; }
+p.honest { font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px; color: #5B665F; font-style: italic; }
+ul.moves { list-style: none; margin: 6px 0; padding: 0; }
+ul.moves li { padding: 6px 2px; border-bottom: 1px solid #E4E1D8;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+</style></head><body><main><header class="masthead"><div><p class="eyebrow">AI Demand Capture &middot; Delta Receipt</p><h1>growthmonk.ai</h1><div class="meta">Period 2026-07 &middot; 1 audit(s) run &middot; prior period 2026-06</div></div><div class="stamp"><div class="g">+0</div><div class="s">72 &rarr; 72</div><div class="l">Score movement</div></div></header><section><h2>Fix log</h2><p class="sub">What we changed this period — levers applied and content shipped.</p><p class="honest">No levers or publishes recorded this period.</p></section><section><h2>Findings movement</h2><p class="sub">Comparable checks only (ADR-13): a check whose version changed between audits is excluded, never counted as resolved or regressed.</p><p class="honest">No content deltas were computed this period.</p></section><section><h2>Search performance (GSC)</h2><p class="honest">No GSC connection — search performance is omitted rather than guessed.</p></section><section><h2>AI citation rates <span class="pill p-beta">BETA</span></h2><p class="sub">Share of engine runs that cited the site, this period vs prior. Wilson 95% intervals; small samples read wide on purpose.</p><p class="honest">No citation samples recorded in either period.</p></section><section><h2>Queue &amp; spend</h2><ul class="moves"><li>Queue items opened: 0 &middot; actions taken: none</li><li>Spend (site-attributed): $0.00</li></ul></section><footer><span>Delta Receipt 2026-07 &middot; generated 2026-07-03 21:30 UTC</span><span class="claim">Claim ceiling: movement vs control, lever unattributed.</span></footer></main></body></html>
