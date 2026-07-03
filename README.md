@@ -8,7 +8,9 @@ Sold direct as GCC multi-location clinic-group concierge (primary lane) and whit
 
 ## Status
 
-**Pre-code.** Repo scaffolded 2026-07-03 with the reviewed product + architecture + roadmap documentation. First committed engineering deliverable: **Gate-2 proof loop v1 by Jul 18, 2026** (see roadmap Phase A).
+**Phase A proof engine built** (2026-07-03, CI green: 67 tests vs Postgres 16). Leased job queue + catch-up scheduler, OpenAI/Perplexity/Gemini citation-sampling adapters, frozen-panel runs, Wilson-CI variance verdicts against pre-registered thresholds, evidence-log export, full operator CLI (`gm`). Remaining before the **Jul 18 Gate-2 date**: provision the production Supabase project, set engine API keys, seed treatment + control panels, **lock `ops/gate1-thresholds.yaml` by Jul 7**, start scheduled runs.
+
+Quickstart: `docker compose up -d db && python3.12 -m venv .venv && .venv/bin/pip install -e "./platform[dev]" && cp platform/.env.example platform/.env` then `gm db migrate` and the flow in `platform/src/gm/cli.py`'s docstring.
 
 ## Documentation
 
