@@ -291,6 +291,27 @@ def _client_present_queries(conn: psycopg.Connection, site_id) -> set[str]:
     return present
 
 
+_RELEVANCE_STOPWORDS = frozenset(
+    "the and for with how what why when where best top free your our near".split()
+)
+
+
+def _relevance_terms(conn: psycopg.Connection, site_id) -> set[str]:
+    """Topic tokens from the site's own tracked queries + brand terms. Empty set
+    means no topical signal is configured — the gap filter then passes everything
+    through (small same-vertical competitors need no filter; the filter exists for
+    giant content-publisher competitors whose top keywords span every topic)."""
+    terms: set[str] = set()
+    for r in conn.execute(
+        "select query_norm from tracked_queries where site_id=%s and active", (site_id,)
+    ).fetchall():
+        terms.update(r["query_norm"].split())
+    row = conn.execute("select brand_terms from sites where id=%s", (site_id,)).fetchone()
+    for t in (row["brand_terms"] if row else None) or []:
+        terms.update(t.lower().split())
+    return {t for t in terms if len(t) >= 3 and t not in _RELEVANCE_STOPWORDS}
+
+
 def keyword_gap(
     conn: psycopg.Connection,
     *,
@@ -322,6 +343,7 @@ def keyword_gap(
         }
 
     present = _client_present_queries(conn, site_id)
+    relevance = _relevance_terms(conn, site_id)
     labs_client = labs_client or LabsClient()
 
     best: dict[str, dict] = {}
@@ -349,6 +371,8 @@ def keyword_gap(
             query = row["query_norm"]
             if query in present:
                 continue
+            if relevance and not (relevance & set(query.split())):
+                continue  # off-topic for this site (giant-competitor blog noise)
             current = best.get(query)
             # best-of dedupe across competitors: lowest position, then highest volume
             if current is None or (row["position"], -volume) < (

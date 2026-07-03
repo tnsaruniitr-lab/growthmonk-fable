@@ -380,9 +380,11 @@ def queue(domain: str, kind: str = typer.Option(None, help="Filter by detector k
         typer.echo("queue empty — run gm gsc pull / wait for compute_queue")
     for r in rows:
         gain = r["at_stake"].get("est_clicks_gain")
+        vol = r["at_stake"].get("volume")
+        stake = f"+{gain:>6} clicks/mo" if gain is not None else f"vol {vol or '?':>5}/mo"
         basis = r["at_stake"].get("basis", "?")
         tgt = r["target"].get("query") or r["target"].get("page") or ""
-        typer.echo(f"{r['kind']:18} +{gain or '?':>6} clicks/mo [{basis}]  {tgt[:70]}")
+        typer.echo(f"{r['kind']:18} {stake} [{basis}]  {tgt[:70]}")
 
 
 @site_app.command("set-author")
