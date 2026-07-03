@@ -59,7 +59,7 @@ def _migrated():
 @pytest.fixture()
 def conn(_migrated):
     with db.connect(autocommit=True) as c:
-        c.execute("truncate queue_items, gsc_window_agg, gsc_page_daily, gsc_ingest_log")
+        c.execute("truncate queue_items, gsc_window_agg, gsc_page_daily, gsc_ingest_log cascade")
         c.execute("truncate gsc_daily")
         yield c
 

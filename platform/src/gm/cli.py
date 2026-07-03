@@ -191,8 +191,10 @@ def worker(
             samples_per_run=int(payload.get("samples_per_run", 3)),
         )
 
+    from gm.audit.compare import handle_compare_serp
     from gm.audit.group import handle_audit_group
     from gm.audit.pipeline import handle_audit_page
+    from gm.content.briefs import handle_generate_brief
     from gm.intel.detectors import handle_compute_queue
     from gm.intel.gsc_ingest import handle_gsc_backfill, handle_gsc_daily, handle_gsc_initial
 
@@ -205,6 +207,8 @@ def worker(
         "gsc_backfill": handle_gsc_backfill,
         "gsc_daily": handle_gsc_daily,
         "compute_queue": handle_compute_queue,
+        "compare_serp": handle_compare_serp,
+        "generate_brief": handle_generate_brief,
     }
     stop = threading.Event()
     if with_scheduler:
@@ -360,6 +364,91 @@ def queue(domain: str, kind: str = typer.Option(None, help="Filter by detector k
         basis = r["at_stake"].get("basis", "?")
         tgt = r["target"].get("query") or r["target"].get("page") or ""
         typer.echo(f"{r['kind']:18} +{gain or '?':>6} clicks/mo [{basis}]  {tgt[:70]}")
+
+
+@app.command()
+def serp(domain: str, query: str):
+    """Pull (or reuse) a SERP snapshot; shows top-10 + PAA + the client's rank."""
+    from gm.intel.serp import DataForSeoClient, get_snapshot
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        snap = get_snapshot(conn, str(site["id"]), query, client=DataForSeoClient())
+        conn.commit()
+    marker = site["domain_norm"]
+    for r in snap["results"][:10]:
+        me = "  ◀ you" if marker in (r.get("domain") or "") else ""
+        line = f"#{r.get('rank'):>2}  {(r.get('domain') or '')[:40]:41} {r.get('title', '')[:50]}"
+        typer.echo(line + me)
+    paa = [f for f in snap.get("features", []) if f.get("type") == "people_also_ask"]
+    for q in (paa[0].get("questions", []) if paa else [])[:4]:
+        typer.echo(f"PAA: {q}")
+
+
+@app.command()
+def compare(
+    domain: str,
+    query: str = typer.Option(...),
+    page: str = typer.Option(None, help="Client page URL (defaults to homepage)"),
+):
+    """Audit the competitors above you for a query; show the precise gaps."""
+    from gm.audit.compare import run_comparison
+    from gm.infra.llm import LlmClient
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        cid = run_comparison(
+            conn, org_id=org["id"], site_id=str(site["id"]), query=query,
+            llm=LlmClient(), client_page_url=page,
+        )
+        row = conn.execute("select * from serp_comparisons where id=%s", (cid,)).fetchone()
+        conn.commit()
+    typer.echo(f"comparison {cid}")
+    for g in (row["gaps"] or [])[:10]:
+        typer.echo(
+            f"GAP {g.get('check_id'):6} {g.get('name','')[:50]:51}"
+            f" you={g.get('client_status')} comps_passing={g.get('competitors_passing')}"
+        )
+
+
+@app.command()
+def brief(
+    domain: str,
+    query: str = typer.Option(...),
+    kind: str = typer.Option("new", help="new | refresh"),
+    page: str = typer.Option(None),
+    out: Path = typer.Option(None, help="Write markdown here (default ops/briefs/)"),
+):
+    """Generate a content brief: SERP + PAA + volumes + competitor gaps + required fixes."""
+    from gm.audit.registry import load_registry
+    from gm.content.briefs import generate_brief, render_brief_markdown
+    from gm.infra.llm import LlmClient
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        try:
+            llm = LlmClient()
+        except Exception:
+            llm = None  # deterministic sections still assemble
+        bid = generate_brief(
+            conn, org_id=org["id"], site_id=str(site["id"]), query=query,
+            llm=llm, kind=kind, page_url=page,
+        )
+        row = conn.execute("select * from briefs where id=%s", (bid,)).fetchone()
+        conn.commit()
+    md = render_brief_markdown(row, checks_meta=load_registry().checks)
+    out = out or config.repo_root() / "ops" / "briefs" / (
+        f"{dt.date.today().isoformat()}-{site['domain_norm']}-{'-'.join(query.split()[:5])}.md"
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(md)
+    typer.echo(f"brief {bid}\n{out}")
 
 
 @app.command("audit-group")
