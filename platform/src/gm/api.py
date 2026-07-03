@@ -21,6 +21,8 @@ DB access: a fresh gm.db.connect() per request — no pooling yet (solo scale).
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import secrets
 import threading
@@ -29,11 +31,13 @@ import uuid
 from typing import Annotated
 
 import psycopg
-from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from gm import db
-from gm.delivery import report, shares
+from gm.delivery import report, shares, whatsapp
+
+log = logging.getLogger(__name__)
 
 SHARE_HEADERS = {
     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
@@ -243,3 +247,74 @@ def admin_costs():
         ).fetchall()
         conn.rollback()
     return rows
+
+
+@app.get("/admin/sites/{site_id}/leads", dependencies=_admin)
+def admin_site_leads(site_id: str, days: int = 28):
+    """Operator lead view: recent leads + weekly counts by source (one platform)."""
+    try:
+        sid = uuid.UUID(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404) from exc
+    days = max(1, min(int(days), 365))
+    with _connect() as conn:
+        leads = conn.execute(
+            "select id, source, occurred_at, notes, attribution"
+            " from booked_leads where site_id = %s"
+            " and occurred_at > now() - make_interval(days => %s)"
+            " order by occurred_at desc limit 200",
+            (sid, days),
+        ).fetchall()
+        weekly = conn.execute(
+            "select date_trunc('week', occurred_at)::date as week_start, source, count(*) as n"
+            " from booked_leads where site_id = %s"
+            " and occurred_at > now() - make_interval(days => %s)"
+            " group by 1, 2 order by 1 desc, 2",
+            (sid, days),
+        ).fetchall()
+        conn.rollback()
+    return {"leads": leads, "weekly": weekly}
+
+
+# ---------------------------------------------------------------------------
+# WhatsApp webhooks (Phase D1) — booked-lead capture
+# ---------------------------------------------------------------------------
+
+@app.get("/webhooks/whatsapp")
+def whatsapp_webhook_verify(request: Request):
+    """Meta subscription handshake. 404 when WABA_VERIFY_TOKEN is unset — an
+    unconfigured webhook surface should be indistinguishable from absent."""
+    verify_token = os.environ.get("WABA_VERIFY_TOKEN")
+    if not verify_token:
+        raise HTTPException(status_code=404)
+    challenge = whatsapp.verify_webhook(dict(request.query_params), verify_token)
+    if challenge is None:
+        raise HTTPException(status_code=403)
+    return PlainTextResponse(challenge)
+
+
+@app.post("/webhooks/whatsapp")
+async def whatsapp_webhook_inbound(request: Request):
+    """Signed inbound webhook -> booked_leads rows.
+
+    Security order matters: 404 when WABA_APP_SECRET is unset (never accept
+    unsigned webhooks silently), then a constant-time HMAC check over the RAW
+    body bytes BEFORE any JSON parsing. Past auth the answer is always a fast
+    200 — processing errors are logged, never bounced (Meta retries
+    aggressively and eventually disables slow/failing subscriptions).
+    """
+    app_secret = os.environ.get("WABA_APP_SECRET")
+    if not app_secret:
+        raise HTTPException(status_code=404)
+    raw = await request.body()
+    if not whatsapp.valid_signature(app_secret, raw, request.headers.get("x-hub-signature-256")):
+        raise HTTPException(status_code=403)
+    try:
+        payload = json.loads(raw)
+        events = whatsapp.parse_inbound(payload) if isinstance(payload, dict) else []
+        if events:
+            with _connect() as conn:
+                whatsapp.record_inbound_leads(conn, events)
+    except Exception:
+        log.exception("whatsapp webhook: inbound processing failed (still returning 200)")
+    return {"ok": True}

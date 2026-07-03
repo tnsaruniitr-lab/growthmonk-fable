@@ -353,6 +353,21 @@ def render_audit_html(
     fails = sum(1 for f in findings or [] if isinstance(f, dict) and f.get("status") == "fail")
     warns = sum(1 for f in findings or [] if isinstance(f, dict) and f.get("status") == "warn")
 
+    # Phase D0: rank context in the masthead — only when the audit ran with
+    # SERP context (scores.serp_context persisted by the pipeline). A NULL
+    # rank is honest absence ("not in the tracked depth"), never a zero.
+    serp_ctx = _dict_or_empty(scores.get("serp_context"))
+    rank_line = ""
+    if serp_ctx.get("query"):
+        rank = _num(serp_ctx.get("client_rank"))
+        if rank is not None:
+            rank_line = f" &middot; ranks #{_esc(round(rank))} for '{_esc(serp_ctx.get('query'))}'"
+        else:
+            rank_line = (
+                " &middot; not in tracked Google depth for"
+                f" '{_esc(serp_ctx.get('query'))}'"
+            )
+
     out: list[str] = [
         "<!doctype html>",
         '<html lang="en"><head><meta charset="utf-8">',
@@ -369,7 +384,8 @@ def render_audit_html(
         f'<div class="meta">{_esc(url)}</div>',
         f'<div class="meta">Audited {_esc(audited_on)}'
         + (f" &middot; gate: {_esc(gate)}" if gate else "")
-        + f" &middot; {fails} failing &middot; {warns} warnings</div>",
+        + f" &middot; {fails} failing &middot; {warns} warnings"
+        + rank_line + "</div>",
         "</div>",
         f'<div class="stamp{stamp_cls}"><div class="g">{_esc(grade)}</div>'
         f'<div class="s">{_score_cell(demand)}/100</div>'

@@ -224,6 +224,11 @@ def _normalize_items(items: list) -> tuple[list[dict], list[dict]]:
                 question = str(sub.get("title") or "").strip()
                 if question and question not in questions:
                     questions.append(question)
+        if item_type == "ai_overview":
+            # Phase D0 (agent A): retain the AI Overview parse on the feature so
+            # serp_snapshots.features carries it — rank_tracker reads AIO citation
+            # data from the snapshot without needing the (unstored) raw response.
+            _collect_aio_hosts(item, feature.setdefault("cited_domains", []))
     for position, entry in enumerate(organic, start=1):
         if entry["rank"] is None:
             entry["rank"] = position
@@ -493,3 +498,59 @@ def get_volumes(
         units={"keywords": len(missing)},
     )
     return out
+
+
+# --- AI Overview extraction (Phase D0, agent A — append-only) -----------------------------
+
+
+def _collect_aio_hosts(node: object, out: list) -> None:
+    """Recursively collect every url/domain field under `node` as a normalized host.
+
+    DataForSEO's ai_overview item shape varies (references / items / links arrays,
+    nested elements), so instead of hard-coding one path we walk the whole item and
+    normalize whatever url/domain values we find. Appends to `out` in encounter
+    order, deduplicated.
+    """
+    if isinstance(node, dict):
+        for key in ("url", "domain"):
+            value = node.get(key)
+            if isinstance(value, str) and value.strip():
+                host = normalize_host(value.strip())
+                if host and host not in out:
+                    out.append(host)
+        for value in node.values():
+            if isinstance(value, dict | list):
+                _collect_aio_hosts(value, out)
+    elif isinstance(node, list):
+        for value in node:
+            _collect_aio_hosts(value, out)
+
+
+def _serp_items(raw_response: object) -> list:
+    """tasks[0].result[0].items of a serp_live raw response; [] on any malformed level."""
+    if not isinstance(raw_response, dict):
+        return []
+    tasks = raw_response.get("tasks")
+    if not (isinstance(tasks, list) and tasks and isinstance(tasks[0], dict)):
+        return []
+    result = tasks[0].get("result")
+    if not (isinstance(result, list) and result and isinstance(result[0], dict)):
+        return []
+    items = result[0].get("items")
+    return items if isinstance(items, list) else []
+
+
+def extract_ai_overview(raw_response: object) -> dict:
+    """{"present": bool, "cited_domains": [normalized hosts]} from a serp_live raw response.
+
+    Defensive across response-shape variants: an absent ai_overview item means
+    present=False; when present, every url/domain field under the item (references,
+    items, links, nested elements) is collected via normalize_host.
+    """
+    cited: list[str] = []
+    present = False
+    for item in _serp_items(raw_response):
+        if isinstance(item, dict) and str(item.get("type") or "") == "ai_overview":
+            present = True
+            _collect_aio_hosts(item, cited)
+    return {"present": present, "cited_domains": cited}

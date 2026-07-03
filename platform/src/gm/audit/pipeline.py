@@ -40,6 +40,16 @@ Phase C wave 3 additions (docs/phase-c-wave3-contracts.md):
     'inconclusive' whenever the evidence bundle has no comparison section —
     in BOTH audit paths.
 
+Phase D0 additions (docs/phase-d0-contracts.md):
+  - run_page_audit gains keyword-only serp_context=None. When provided
+    ({"query", "results", "client_rank", "features"}) it joins the evidence
+    bundle as evidence["serp"], counts as comparison data for the
+    comparative-N/A rule (H checks classify instead of 'na'), and a
+    {"query", "client_rank"} summary is persisted into scores["serp_context"].
+  - serp_context_for_page builds that context from the freshest matching
+    rank_history + serp_snapshots pair; handle_audit_page wires it in
+    automatically. Public signatures are otherwise unchanged.
+
 Every prompt string lives in a module-level constant (versioned later).
 """
 
@@ -216,8 +226,10 @@ def comparative_na_overrides(registry: Registry, evidence: dict) -> dict[str, di
     """Deterministic 'na' overrides for method='comparative' checks when the
     evidence bundle carries no comparison section. Without comparison data the
     model could only answer 'inconclusive' — this skips the spend and records
-    the honest reason instead. Returns {} when evidence['comparison'] is set."""
-    if evidence.get("comparison"):
+    the honest reason instead. Returns {} when evidence['comparison'] is set,
+    or (phase D0) when evidence['serp'] carries SERP context — competitor
+    results in the live SERP ARE comparison data, so H checks classify."""
+    if evidence.get("comparison") or evidence.get("serp"):
         return {}
     return {
         cid: {"status": "na", "note": COMPARATIVE_NA_NOTE, "source": "deterministic"}
@@ -533,9 +545,11 @@ def _persist_findings(conn, org_id, audit_id, findings: list[dict],
 
 def _grade_and_persist(conn, *, org_id, audit_id, reg: Registry, gate_state: str,
                        status_map: dict[str, dict], notes: list[str],
-                       cost_cents: float) -> None:
+                       cost_cents: float, serp_context: dict | None = None) -> None:
     """Stage 5 (shared by page and draft audits): deterministic grading +
-    findings/scores persistence, terminal status 'done'."""
+    findings/scores persistence, terminal status 'done'. When SERP context was
+    used, a {"query", "client_rank"} summary rides along in the scores jsonb
+    so the report masthead can state the rank honestly."""
     findings = [
         {
             "check_id": cid,
@@ -549,9 +563,59 @@ def _grade_and_persist(conn, *, org_id, audit_id, reg: Registry, gate_state: str
     validated = scoring.validate_findings(findings, reg)
     scores = scoring.recompute_scores(validated, reg, gate_state)
     scores["classifier_notes"] = notes
+    if serp_context:
+        scores["serp_context"] = {
+            "query": serp_context.get("query"),
+            "client_rank": serp_context.get("client_rank"),
+        }
     _persist_findings(conn, org_id, audit_id, validated, status_map, reg)
     _finish(conn, audit_id, status="done", gate_state=gate_state, scores=scores,
             cost_cents=cost_cents)
+
+
+# ---------------------------------------------------------------------------
+# SERP context (phase D0)
+# ---------------------------------------------------------------------------
+
+# Bound on rank_history rows scanned per lookup: canonicalization happens in
+# Python (SQL can't reuse canonicalize_url), so the scan is capped instead of
+# unbounded. Weekly tracking with tens of queries stays far below this.
+_SERP_CONTEXT_SCAN_LIMIT = 500
+
+
+def serp_context_for_page(conn, site_id, url_norm: str) -> dict | None:
+    """SERP context for one page, or None when the page has no tracked rank.
+
+    Reads the freshest rank_history row (newest checked_on first, joined to
+    its serp_snapshots row for results/features) whose ranked_url — or the
+    tracked query's target_page — canonicalizes to this page's url_norm.
+    Rows without a snapshot are skipped: without stored results there is no
+    comparison data to show the classifier. None means behavior unchanged.
+    """
+    rows = conn.execute(
+        """
+        select rh.query_norm, rh.rank, rh.ranked_url,
+               tq.target_page, ss.results, ss.features
+          from rank_history rh
+          join serp_snapshots ss on ss.id = rh.snapshot_id
+          left join tracked_queries tq
+            on tq.site_id = rh.site_id and tq.query_norm = rh.query_norm
+         where rh.site_id = %s
+         order by rh.checked_on desc, rh.id desc
+         limit %s
+        """,
+        (site_id, _SERP_CONTEXT_SCAN_LIMIT),
+    ).fetchall()
+    for row in rows:
+        for candidate in (row["ranked_url"], row["target_page"]):
+            if candidate and canonicalize_url(candidate) == url_norm:
+                return {
+                    "query": row["query_norm"],
+                    "results": row["results"] if isinstance(row["results"], list) else [],
+                    "client_rank": row["rank"],
+                    "features": row["features"] if isinstance(row["features"], list) else [],
+                }
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -569,12 +633,18 @@ def run_page_audit(
     fetcher_factory: Callable | None = None,
     cost_cap_cents: float = 250.0,
     job_id: int | None = None,
+    serp_context: dict | None = None,
 ) -> str:
     """Run the five-stage page audit. Returns the audit_id (str).
 
     Once the audits row exists it ALWAYS reaches a terminal status: unexpected
     stage exceptions are caught and persisted as status='failed' (per-call
     costs live in cost_events regardless).
+
+    `serp_context` (phase D0, optional): {"query", "results", "client_rank",
+    "features"} — added to the evidence bundle as evidence["serp"], activates
+    comparative (H) checks, and persists a {"query", "client_rank"} summary
+    into scores["serp_context"]. None = pre-D0 behavior, unchanged.
     """
     reg = registry if registry is not None else load_registry()
     factory = fetcher_factory or (lambda ua: make_fetcher(user_agent=ua))
@@ -596,6 +666,7 @@ def run_page_audit(
         _run_stages(
             conn, audit_id=audit_id, org_id=org_id, url=url, llm=llm, reg=reg,
             factory=factory, cost_cap_cents=cost_cap_cents, job_id=job_id,
+            serp_context=serp_context,
         )
     except Exception as exc:
         log.exception("audit %s: pipeline failed", audit_id)
@@ -612,7 +683,8 @@ def run_page_audit(
 
 
 def _run_stages(conn, *, audit_id, org_id, url, llm, reg: Registry,
-                factory: Callable, cost_cap_cents: float, job_id: int | None) -> None:
+                factory: Callable, cost_cap_cents: float, job_id: int | None,
+                serp_context: dict | None = None) -> None:
     # Stage 2: acquire (default UA, SSRF-guarded in the real fetcher).
     fetcher = factory(DEFAULT_USER_AGENT)
     try:
@@ -635,8 +707,12 @@ def _run_stages(conn, *, audit_id, org_id, url, llm, reg: Registry,
                 scores=scores, cost_cents=0.0)
         return
 
-    # Stage 3: evidence.
+    # Stage 3: evidence. SERP context (phase D0) joins the bundle here so the
+    # classifier sees the live SERP alongside the page — and its presence
+    # activates comparative (H) checks via comparative_na_overrides.
     evidence = collect_evidence(page, url, factory)
+    if serp_context:
+        evidence["serp"] = serp_context
     gate_state = evidence.pop("gate_state", "ok")
     if gate_state in scoring.UNGRADEABLE_GATE_STATES:
         scores = scoring.recompute_scores([], reg, gate_state)
@@ -665,7 +741,7 @@ def _run_stages(conn, *, audit_id, org_id, url, llm, reg: Registry,
     # Stage 5: deterministic grading + persistence (shared with draft audits).
     _grade_and_persist(conn, org_id=org_id, audit_id=audit_id, reg=reg,
                        gate_state=gate_state, status_map=status_map, notes=notes,
-                       cost_cents=total_cost)
+                       cost_cents=total_cost, serp_context=serp_context)
 
 
 def run_draft_audit(
@@ -749,7 +825,11 @@ def _run_draft_stages(conn, *, audit_id, org_id, draft_html: str, url_hint: str,
 
 
 def handle_audit_page(ctx) -> None:
-    """Job handler for type 'audit_page': payload {"url": ...}; wraps run_page_audit."""
+    """Job handler for type 'audit_page': payload {"url": ...}; wraps run_page_audit.
+
+    Phase D0: SERP context is wired in automatically — when this page has a
+    fresh tracked rank (rank_history + snapshot), the audit sees the live SERP.
+    """
     from gm.infra.llm import LlmClient  # deferred: same-wave gateway module
 
     payload = ctx.job.payload or {}
@@ -758,6 +838,9 @@ def handle_audit_page(ctx) -> None:
         raise ValueError(f"job {ctx.job.id}: payload missing 'url'")
     if ctx.job.org_id is None or ctx.job.site_id is None:
         raise ValueError(f"job {ctx.job.id}: audit_page requires org_id and site_id")
+    serp_context = serp_context_for_page(
+        ctx.conn, ctx.job.site_id, canonicalize_url(page_url)
+    )
     run_page_audit(
         ctx.conn,
         org_id=str(ctx.job.org_id),
@@ -766,4 +849,5 @@ def handle_audit_page(ctx) -> None:
         llm=LlmClient(),
         cost_cap_cents=float(payload.get("cost_cap_cents", 250.0)),
         job_id=ctx.job.id,
+        serp_context=serp_context,
     )

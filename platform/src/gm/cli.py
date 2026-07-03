@@ -184,6 +184,11 @@ def worker(
 ):
     """Run the job worker (and optionally the catch-up scheduler) until Ctrl-C."""
 
+    def _lazy_send_lead_card(ctx: jobs_mod.JobContext) -> None:
+        from gm.delivery.leadcard import handle_send_lead_card
+
+        handle_send_lead_card(ctx)
+
     def _handle_scheduled_run(ctx: jobs_mod.JobContext) -> None:
         payload = ctx.job.payload
         sampler.enqueue_run(
@@ -222,6 +227,7 @@ def worker(
         "assemble_receipt": handle_assemble_receipt,
         "track_serps": handle_track_serps,
         "keyword_gap": handle_keyword_gap,
+        "send_lead_card": _lazy_send_lead_card,
     }
     stop = threading.Event()
     if with_scheduler:
@@ -523,6 +529,100 @@ def receipt(
 
 track_app = typer.Typer(help="Tracked queries (rank + AI Overview)", no_args_is_help=True)
 app.add_typer(track_app, name="track")
+lead_app = typer.Typer(help="Booked leads (the attribution denominator)", no_args_is_help=True)
+app.add_typer(lead_app, name="lead")
+
+
+@lead_app.command("add")
+def lead_add(
+    domain: str,
+    source: str = typer.Option("manual", help="manual | call | booking_system"),
+    notes: str = typer.Option(None),
+    occurred: str = typer.Option(None, help="ISO timestamp, default now"),
+):
+    from gm.delivery.leadcard import add_lead
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        lid = add_lead(conn, org_id=org["id"], site_id=str(site["id"]), source=source,
+                       occurred_at=occurred, notes=notes)
+        conn.commit()
+    typer.echo(lid)
+
+
+@lead_app.command("list")
+def lead_list(domain: str, days: int = typer.Option(28)):
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        rows = conn.execute(
+            "select occurred_at, source, notes,"
+            " attribution->'referral'->>'source_url' as ref"
+            " from booked_leads where site_id=%s"
+            " and occurred_at > now() - make_interval(days => %s)"
+            " order by occurred_at desc limit 100",
+            (site["id"], days),
+        ).fetchall()
+        counts = conn.execute(
+            "select source, count(*) c from booked_leads where site_id=%s"
+            " and occurred_at > now() - make_interval(days => %s) group by source",
+            (site["id"], days),
+        ).fetchall()
+    summary = ", ".join(f"{r['source']}={r['c']}" for r in counts) or "0 leads"
+    typer.echo(f"last {days}d: {summary}")
+    for r in rows[:30]:
+        ref = f"  via {r['ref']}" if r["ref"] else ""
+        typer.echo(f"{r['occurred_at']:%m-%d %H:%M}  {r['source']:14} {r['notes'] or ''}{ref}")
+
+
+@lead_app.command("card")
+def lead_card(domain: str, send: bool = typer.Option(False, "--send")):
+    """Preview (or send) this week's WhatsApp trend card."""
+    from gm.delivery.leadcard import build_card_text
+
+    monday = dt.date.today() - dt.timedelta(days=dt.date.today().weekday())
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        text = build_card_text(conn, str(site["id"]), week_start=monday)
+        if send:
+            from gm.delivery.whatsapp import WabaClient
+
+            wa = conn.execute(
+                "select meta from connections where site_id=%s and kind='whatsapp'",
+                (site["id"],),
+            ).fetchone()
+            if not wa:
+                raise typer.Exit("no whatsapp connection — run gm wa-connect")
+            WabaClient().send_text(wa["meta"]["recipient_wa_id"], text)
+            typer.echo("sent ✓")
+        conn.commit()
+    typer.echo(text)
+
+
+@app.command("wa-connect")
+def wa_connect(
+    domain: str,
+    phone_number_id: str = typer.Option(..., help="WABA phone number id (webhook mapping)"),
+    recipient: str = typer.Option(..., help="Buyer's wa_id to receive the weekly card"),
+):
+    """Map a WABA number to this site (token stays in env, never stored)."""
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        conn.execute(
+            "insert into connections (org_id, site_id, kind, meta) values (%s,%s,'whatsapp',%s)"
+            " on conflict (site_id, kind) do update set meta=excluded.meta, status='ok'",
+            (org["id"], site["id"],
+             Jsonb({"phone_number_id": phone_number_id, "recipient_wa_id": recipient})),
+        )
+        conn.commit()
+    typer.echo("whatsapp connected")
 
 
 @track_app.command("add")

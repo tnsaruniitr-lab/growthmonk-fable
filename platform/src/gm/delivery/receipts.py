@@ -20,6 +20,13 @@ bookkeeping defaults applied by the database).
 
 The renderer reuses the report design system by importing gm.delivery.report
 (_CSS/_esc/badge chips); only receipt-specific section markup lives here.
+
+Phase D0 (docs/phase-d0-contracts.md): the receipt payload gains a
+"rank_tracking" section via gm.intel.rank_tracker.rank_movement — lazily
+imported and tolerated when absent (the module is built concurrently), and
+rendered as a 'Google visibility' section (rank arrows, AI Overview citation
+badges, competitor top-10 changes) before the BETA citation section, with an
+honest empty state when no queries are tracked.
 """
 
 from __future__ import annotations
@@ -116,6 +123,21 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, decimal.Decimal):
         return float(value)
     return value
+
+
+def _rank_movement_fn():
+    """Lazy accessor for gm.intel.rank_tracker.rank_movement (phase D0).
+
+    The rank_tracker module is built concurrently — its absence must not stop
+    receipts from assembling. Returns the function, or None when unavailable.
+    Called at assemble time (not import time) so tests can monkeypatch it and
+    a later-deployed rank_tracker is picked up without a restart.
+    """
+    try:
+        from gm.intel.rank_tracker import rank_movement
+    except ImportError:
+        return None
+    return rank_movement
 
 
 def _url_variants(urls: set[str]) -> list[str]:
@@ -536,6 +558,23 @@ def assemble_site_receipt(conn: psycopg.Connection, *, site_id: Any, period: str
         (site_id,),
     ).fetchone() is not None
 
+    # -- rank tracking (phase D0; module may not be deployed yet) ---------------
+    movement_fn = _rank_movement_fn()
+    if movement_fn is None:
+        rank_tracking: dict[str, Any] = {
+            "available": False,
+            "queries": [],
+            "note": "rank tracking not available yet",
+        }
+    else:
+        rank_tracking = {
+            "available": True,
+            # since/until are inclusive dates; the period is [start, end).
+            "queries": movement_fn(
+                conn, site_id, since=start, until=end - dt.timedelta(days=1)
+            ),
+        }
+
     payload = _jsonable({
         "period": period,
         "period_start": start,
@@ -549,6 +588,7 @@ def assemble_site_receipt(conn: psycopg.Connection, *, site_id: Any, period: str
         "audits": {"run": len(audits), "movement": movement},
         "fix_log": {"levers": levers, "published": published},
         "content": content,
+        "rank_tracking": rank_tracking,
         "citations": {
             "prompts": prompts,
             "controls": {"sites": control_sites, "mean_abs_drift": mean_abs_drift},
@@ -753,6 +793,123 @@ def _gsc_html(payload: dict) -> list[str]:
     return out
 
 
+def _movement_view(m: dict) -> dict:
+    """Normalize one rank_movement entry into the renderer's canonical shape.
+
+    rank_tracker is built concurrently against a prose contract ("per query:
+    first/last rank + aio_cited in window, competitor top_domains changes"),
+    so the exact key names are accepted defensively via documented aliases.
+    """
+    def pick(*keys: str) -> Any:
+        for key in keys:
+            value = m.get(key)
+            if value is not None:
+                return value
+        return None
+
+    aio_first = pick("aio_cited_first", "aio_first")
+    aio_last = pick("aio_cited_last", "aio_last")
+    aio = m.get("aio_cited")
+    if isinstance(aio, dict):
+        aio_first = aio.get("first") if aio_first is None else aio_first
+        aio_last = aio.get("last") if aio_last is None else aio_last
+    elif isinstance(aio, bool) and aio_last is None:
+        aio_last = aio
+    entered = pick("entered_top10", "competitors_entered", "entered")
+    left = pick("left_top10", "competitors_left", "left")
+    if entered is None or left is None:
+        competitors = m.get("competitors")
+        if isinstance(competitors, dict):
+            entered = competitors.get("entered") if entered is None else entered
+            left = competitors.get("left") if left is None else left
+    return {
+        "query": pick("query", "query_norm") or "",
+        "first_rank": report._num(pick("first_rank", "rank_first")),
+        "last_rank": report._num(pick("last_rank", "rank_last")),
+        "aio_first": None if aio_first is None else bool(aio_first),
+        "aio_last": None if aio_last is None else bool(aio_last),
+        "entered": entered if isinstance(entered, list) else [],
+        "left": left if isinstance(left, list) else [],
+    }
+
+
+def _rank_cell(first: float | None, last: float | None) -> str:
+    """'#12 → #7' with a movement arrow; NULL ranks are honest absence."""
+    def fmt(rank: float | None) -> str:
+        return "&mdash;" if rank is None else f"#{_esc(round(rank))}"
+
+    if first is None and last is None:
+        return '<span class="honest">not ranked</span>'
+    arrow = ""
+    if last is not None and (first is None or last < first):
+        arrow = ' <span class="delta-up">&#9650;</span>'
+    elif first is not None and (last is None or last > first):
+        arrow = ' <span class="delta-down">&#9660;</span>'
+    return f"{fmt(first)} &rarr; {fmt(last)}{arrow}"
+
+
+def _aio_cell(first: bool | None, last: bool | None) -> str:
+    if last:
+        badge = '<span class="pill p-pass">AIO cited</span>'
+        return badge + (" (gained)" if first is False else "")
+    if first:
+        return '<span class="delta-down">lost AIO citation</span>'
+    return "&mdash;"
+
+
+def _competitor_cell(entered: list, left: list) -> str:
+    parts = []
+    if entered:
+        parts.append("entered top-10: " + ", ".join(_esc(d) for d in entered))
+    if left:
+        parts.append("left top-10: " + ", ".join(_esc(d) for d in left))
+    return " &middot; ".join(parts) if parts else "&mdash;"
+
+
+def _rank_tracking_html(payload: dict) -> list[str]:
+    """The 'Google visibility' section: tracked-query rank movement, AI
+    Overview citations, competitor top-10 changes. Honest empty states."""
+    tracking = report._dict_or_empty(payload.get("rank_tracking"))
+    queries = tracking.get("queries") if isinstance(tracking.get("queries"), list) else []
+    out = [
+        "<section><h2>Google visibility</h2>",
+        '<p class="sub">Tracked-query rank movement this period, AI Overview '
+        "citations, and competitor changes in the top 10.</p>",
+    ]
+    if not tracking.get("available"):
+        out.append('<p class="honest">Rank tracking is not enabled for this site yet.</p>')
+        out.append("</section>")
+        return out
+    if not queries:
+        out.append(
+            '<p class="honest">No tracked queries this period — rank movement '
+            "appears once queries are tracked.</p>"
+        )
+        out.append("</section>")
+        return out
+    out.append(
+        '<table class="delta"><thead><tr><th>Query</th><th>Rank</th>'
+        "<th>AI Overview</th><th>Competitor changes</th></tr></thead><tbody>"
+    )
+    for entry in queries:
+        if not isinstance(entry, dict):
+            continue
+        view = _movement_view(entry)
+        out.append(
+            f"<tr><td>{_esc(view['query'])}</td>"
+            f"<td>{_rank_cell(view['first_rank'], view['last_rank'])}</td>"
+            f"<td>{_aio_cell(view['aio_first'], view['aio_last'])}</td>"
+            f"<td>{_competitor_cell(view['entered'], view['left'])}</td></tr>"
+        )
+    out.append("</tbody></table>")
+    out.append(
+        '<p class="honest">First vs last tracked check inside the period; '
+        "a &mdash; rank means the site was not in the tracked depth.</p>"
+    )
+    out.append("</section>")
+    return out
+
+
 def _ci_txt(ci: Any) -> str:
     if not isinstance(ci, (list, tuple)) or len(ci) != 2:
         return ""
@@ -889,6 +1046,7 @@ def render_receipt_html(
     out.extend(_fix_log_html(report._dict_or_empty(payload.get("fix_log"))))
     out.extend(_findings_html(content, checks_meta))
     out.extend(_gsc_html(payload))
+    out.extend(_rank_tracking_html(payload))  # before the BETA citation section
     out.extend(_citations_html(payload))
     out.extend(_ops_html(payload))
     out.append(
