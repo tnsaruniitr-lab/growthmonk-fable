@@ -442,3 +442,162 @@ def test_handle_compute_queue_requires_site(conn, site):
     )
     with pytest.raises(RuntimeError, match="site_id"):
         detectors.handle_compute_queue(jobs.JobContext(job, conn, "w", 60))
+
+
+# --- normalize_at_stake: unified presentation (Phase D4, WP-J) --------------------------
+# Pure tests: no conn, no I/O. One realistic row per queue kind (payload shapes match
+# what the detectors actually write), plus unknown-kind / missing-field rows proving
+# the fallback never invents a zero.
+
+_SHAPE_KEYS = {"kind", "headline", "detail", "value", "unit"}
+
+
+def _norm(kind, at_stake, target=None):
+    return detectors.normalize_at_stake(
+        {"kind": kind, "target": target or {}, "at_stake": at_stake}
+    )
+
+
+def test_normalize_striking_distance():
+    out = _norm("striking_distance", {
+        "est_clicks_gain": 45.0, "basis": "final", "impressions": 1000,
+        "clicks": 20, "ctr": 0.02, "position": 8.0,
+    })
+    assert set(out) == _SHAPE_KEYS
+    assert out["kind"] == "striking_distance"
+    assert out["value"] == 45.0 and out["unit"] == "clicks/mo"
+    assert out["headline"] == "+45 clicks/mo"
+    assert "position 8" in out["detail"] and "ctr 2.00%" in out["detail"]
+
+
+def test_normalize_ctr_outlier():
+    out = _norm("ctr_outlier", {
+        "est_clicks_gain": 80.0, "basis": "provisional", "impressions": 1000,
+        "clicks": 10, "ctr": 0.01, "expected_ctr": 0.09, "position": 3.0,
+    })
+    assert out["value"] == 80.0 and out["unit"] == "clicks/mo"
+    assert out["headline"] == "+80 clicks/mo"
+    assert "expected 9.00%" in out["detail"] and "ctr 1.00%" in out["detail"]
+
+
+def test_normalize_decay():
+    out = _norm("decay", {
+        "est_clicks_gain": 50.0, "basis": "final", "clicks_28d": 100,
+        "prior_clicks": 150, "drop_pct": 0.3333, "yoy_clicks": None, "yoy_drop_pct": None,
+    })
+    assert out["value"] == 50.0 and out["unit"] == "clicks/mo"
+    assert out["headline"] == "+50 clicks/mo"
+    assert "down 33% vs prior 28d" in out["detail"]
+    # None yoy fields are honest absences, not rendered
+    assert "last year" not in out["detail"]
+
+
+def test_normalize_cannibalization():
+    out = _norm("cannibalization", {
+        "est_clicks_gain": 12.5, "basis": "final", "impressions_total": 500,
+        "clicks_total": 10,
+        "pages": [{"page": "https://e.x/a"}, {"page": "https://e.x/b"}],
+    })
+    assert out["value"] == 12.5 and out["unit"] == "clicks/mo"
+    assert out["headline"] == "+12.5 clicks/mo"
+    assert "2 pages competing" in out["detail"]
+
+
+def test_normalize_keyword_gap():
+    out = _norm("keyword_gap", {
+        "volume": 720, "best_competitor": "rival.example",
+        "their_position": 4, "basis": "labs",
+    }, target={"query": "dental implants dubai"})
+    assert out["value"] == 720.0 and out["unit"] == "searches/mo"
+    assert out["headline"] == "720 searches/mo"
+    assert out["detail"] == "best: rival.example at #4"
+
+
+def test_normalize_competitor_candidate():
+    out = _norm("competitor_candidate", {
+        "intersections": 37, "avg_position": 12.4, "their_keywords": 900,
+        "their_etv": 30124.5, "basis": "labs",
+    })
+    assert out["value"] == 37.0 and out["unit"] == "shared keywords"
+    assert out["headline"] == "37 shared keywords"
+    assert "avg position 12.4" in out["detail"]
+    assert "30124.5" in out["detail"]
+
+
+def test_normalize_competitor_candidate_absent_fields_say_no_data_yet():
+    # discovery writes explicit None for provider fields it did not get
+    out = _norm("competitor_candidate", {
+        "intersections": 5, "avg_position": None, "their_keywords": None,
+        "their_etv": None, "basis": "labs",
+    })
+    assert out["value"] == 5.0
+    assert out["detail"] == "no data yet"
+
+
+def test_normalize_local_presence():
+    out = _norm("local_presence", {
+        "issue": "local pack present but site absent", "queries_with_pack": 3,
+        "basis": "serp_local_pack",
+    })
+    assert out["value"] is None and out["unit"] is None
+    assert out["headline"] == "local pack present but site absent"
+    assert out["detail"] == "packs on 3 tracked queries"
+
+
+def test_normalize_unknown_kind_is_not_quantified():
+    out = _norm("mystery_kind", {"anything": 1})
+    assert set(out) == _SHAPE_KEYS
+    assert out["value"] is None and out["unit"] is None  # never a fake zero
+    assert out["headline"] == "at stake: not quantified"
+    assert out["detail"] == '{"anything":1}'  # compact raw JSON
+
+
+def test_normalize_missing_fields_fall_back_honestly():
+    # a clicks kind without est_clicks_gain must NOT invent value=0
+    out = _norm("striking_distance", {"basis": "final"})
+    assert out["value"] is None
+    assert out["headline"] == "at stake: not quantified"
+    assert out["detail"] == '{"basis":"final"}'
+    # keyword_gap without volume: same fallback
+    out = _norm("keyword_gap", {"best_competitor": "rival.example", "basis": "labs"})
+    assert out["value"] is None
+    assert out["headline"] == "at stake: not quantified"
+    # keyword_gap WITH volume but no competitor context: value kept, detail honest
+    out = _norm("keyword_gap", {"volume": 90, "basis": "labs"})
+    assert out["value"] == 90.0
+    assert out["detail"] == "no data yet"
+    # local_presence without an issue string cannot fake a headline
+    out = _norm("local_presence", {"queries_with_pack": 2})
+    assert out["headline"] == "at stake: not quantified"
+
+
+def test_normalize_non_dict_at_stake_is_not_quantified():
+    for raw in (None, [], "text", 7):
+        out = _norm("striking_distance", raw)
+        assert out["value"] is None and out["unit"] is None
+        assert out["headline"] == "at stake: not quantified"
+    assert _norm("decay", None)["detail"] == "null"  # compact raw JSON of the raw value
+
+
+def test_normalize_rejects_non_numeric_gain():
+    # bool/str gains are corrupt data, not numbers — fallback, never float(True)==1.0
+    assert _norm("decay", {"est_clicks_gain": True})["value"] is None
+    assert _norm("decay", {"est_clicks_gain": "12"})["value"] is None
+
+
+def test_normalize_every_kind_returns_exact_shape():
+    rows = [
+        ("striking_distance", {"est_clicks_gain": 1.0}),
+        ("ctr_outlier", {"est_clicks_gain": 1.0}),
+        ("decay", {"est_clicks_gain": 1.0}),
+        ("cannibalization", {"est_clicks_gain": 1.0}),
+        ("keyword_gap", {"volume": 10}),
+        ("competitor_candidate", {"intersections": 3}),
+        ("local_presence", {"issue": "x", "queries_with_pack": 1}),
+        ("unknown", {}),
+    ]
+    for kind, at_stake in rows:
+        out = _norm(kind, at_stake)
+        assert set(out) == _SHAPE_KEYS, kind
+        assert out["kind"] == kind
+        assert out["value"] is None or isinstance(out["value"], float), kind

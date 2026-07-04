@@ -458,7 +458,14 @@ def gsc_status(domain: str):
 
 @app.command()
 def queue(domain: str, kind: str = typer.Option(None, help="Filter by detector kind")):
-    """The operator queue: what to fix this week, ranked by clicks at stake."""
+    """The operator queue: what to fix this week, ranked by clicks at stake.
+
+    Every kind's heterogeneous at_stake renders through the one unified
+    presentation (detectors.normalize_at_stake, Phase D4): headline + detail
+    columns; unquantified rows say so honestly instead of faking a zero.
+    """
+    from gm.intel.detectors import normalize_at_stake
+
     with db.connect() as conn:
         org = _org(conn)
         db.set_org(conn, org["id"])
@@ -471,17 +478,19 @@ def queue(domain: str, kind: str = typer.Option(None, help="Filter by detector k
         if kind:
             q += " and kind=%s"
             params.append(kind)
-        q += " order by coalesce((at_stake->>'est_clicks_gain')::float, 0) desc limit 30"
+        q += " order by coalesce((at_stake->>'est_clicks_gain')::float, 0) desc, kind limit 30"
         rows = conn.execute(q, params).fetchall()
     if not rows:
         typer.echo("queue empty — run gm gsc pull / wait for compute_queue")
     for r in rows:
-        gain = r["at_stake"].get("est_clicks_gain")
-        vol = r["at_stake"].get("volume")
-        stake = f"+{gain:>6} clicks/mo" if gain is not None else f"vol {vol or '?':>5}/mo"
-        basis = r["at_stake"].get("basis", "?")
-        tgt = r["target"].get("query") or r["target"].get("page") or ""
-        typer.echo(f"{r['kind']:18} {stake} [{basis}]  {tgt[:70]}")
+        d = normalize_at_stake(
+            {"kind": r["kind"], "target": r["target"], "at_stake": r["at_stake"]}
+        )
+        tgt = (
+            r["target"].get("query") or r["target"].get("page")
+            or r["target"].get("domain") or r["target"].get("check_id") or ""
+        )
+        typer.echo(f"{r['kind']:18} {d['headline']:26} {tgt[:50]:50} {d['detail']}")
 
 
 @site_app.command("set-author")
@@ -1383,6 +1392,158 @@ def status():
         ).fetchone()
     typer.echo("jobs: " + (", ".join(f"{r['status']}={r['c']}" for r in jrows) or "none"))
     typer.echo(f"llm spend last 30d: ${float(crow['cents']) / 100:.2f}")
+
+
+# --- spend rail + refusal log (Phase D4, WP-WIRE over WP-I / WP-J) --------------------------
+
+_BUDGET_BAR_WIDTH = 8
+
+
+def _usd(cents: float) -> str:
+    """Dollar render; sub-cent amounts keep 4 decimals so real spend never
+    displays as an invented $0.00 (empty-state law, display edition)."""
+    dollars = float(cents) / 100.0
+    if cents and abs(round(dollars, 2)) < 0.005:
+        return f"${dollars:.4f}"
+    return f"${dollars:.2f}"
+
+
+def _budget_bar(budget: dict) -> str:
+    """budget_state -> one text line: '[####----] 42% of cap (…)'; 'no cap
+    configured' instead of a fake bar. Fill is ceil'd so any nonzero spend
+    shows at least one tick."""
+    import math
+
+    cap, spent = budget["cap_cents"], budget["spent_cents"]
+    if cap is None:
+        return budget["note"] or "no cap configured"
+    pct = 100.0 if cap <= 0 else spent / cap * 100.0
+    filled = min(_BUDGET_BAR_WIDTH, math.ceil(min(pct, 100.0) / 100.0 * _BUDGET_BAR_WIDTH))
+    bar = "[" + "#" * filled + "-" * (_BUDGET_BAR_WIDTH - filled) + "]"
+    line = f"{bar} {pct:.0f}% of cap ({_usd(spent)} of {_usd(cap)})"
+    if budget["exceeded"]:
+        line += " — EXCEEDED: paid DataForSEO calls are refusing"
+    return line
+
+
+@app.command()
+def spend(days: int = typer.Option(30, "--days", help="Rolling window for the rollup tables")):
+    """Provider spend rollup + live DataForSEO balance + the monthly budget rail."""
+    from gm.intel import spend as spend_mod
+
+    with db.connect() as conn:
+        rollup = spend_mod.spend_rollup(conn, days=days)
+        budget = spend_mod.budget_state(conn)
+        conn.rollback()  # read-only
+    balance = spend_mod.dataforseo_balance()
+
+    typer.echo(f"spend last {rollup['window_days']}d: {_usd(rollup['total_cents'])} total")
+    if not rollup["by_provider"]:
+        typer.echo("  no provider spend recorded in this window")
+    else:
+        typer.echo("by provider:")
+        for r in rollup["by_provider"]:
+            typer.echo(f"  {r['provider']:16} {_usd(r['cost_cents']):>10}  {r['events']} event(s)")
+        typer.echo("by purpose:")
+        for r in rollup["by_purpose"]:
+            typer.echo(
+                f"  {r['provider']:16} {r['purpose']:24} {_usd(r['cost_cents']):>10}"
+                f"  {r['events']} event(s)"
+            )
+        typer.echo("by day:")
+        for r in rollup["by_day"]:
+            typer.echo(f"  {r['date']}  {r['provider']:16} {_usd(r['cost_cents']):>10}")
+        last = rollup["last_event"]
+        if last is not None:
+            typer.echo(
+                f"last event: {last['created_at']:%Y-%m-%d %H:%M}  {last['provider']}"
+                f" {last['purpose']}  {_usd(last['cost_cents'])}"
+            )
+    if balance["balance"] is None:
+        note = f" — {balance['note']}" if balance["note"] else ""
+        typer.echo(f"dataforseo balance: unreachable{note}")
+    else:
+        typer.echo(f"dataforseo balance: ${balance['balance']:.2f}")
+    typer.echo(f"budget: {_budget_bar(budget)}")
+    if budget["projected_month_cents"] is None:
+        typer.echo("projected month: no spend yet this month")
+    else:
+        typer.echo(f"projected month: {_usd(budget['projected_month_cents'])}")
+
+
+refusal_app = typer.Typer(
+    help="Refusal log — the agency-pitch DIY tripwire ledger (roadmap D.7)",
+    no_args_is_help=True,
+)
+app.add_typer(refusal_app, name="refusal")
+
+
+@refusal_app.command("add")
+def refusal_add(
+    prospect: str,
+    reason: str = typer.Option(..., "--reason", help="diy | price | timing | trust | other"),
+    source: str = typer.Option("agency_pitch", "--source", help="Pitch channel"),
+    notes: str = typer.Option(None, "--notes"),
+    date: str = typer.Option(None, "--date", help="YYYY-MM-DD, default today"),
+):
+    """Log one refusal (who said no, through which channel, and why)."""
+    from gm.core import refusals as refusals_mod
+
+    refused_at = None
+    if date is not None:
+        try:
+            refused_at = dt.date.fromisoformat(date)
+        except ValueError as exc:
+            raise typer.BadParameter(f"--date must be YYYY-MM-DD, got {date!r}") from exc
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        try:
+            rid = refusals_mod.add_refusal(
+                conn, org_id=org["id"], prospect=prospect, reason=reason,
+                source=source, notes=notes, refused_at=refused_at,
+            )
+        except ValueError as exc:  # typed reason message, verbatim
+            raise typer.BadParameter(str(exc)) from exc
+        conn.commit()
+    typer.echo(rid)
+
+
+@refusal_app.command("list")
+def refusal_list(days: int = typer.Option(180, "--days")):
+    """Refusals in the window, newest first."""
+    from gm.core import refusals as refusals_mod
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        rows = refusals_mod.list_refusals(conn, org_id=org["id"], days=days)
+        conn.rollback()  # read-only
+    if not rows:
+        typer.echo(f"no refusals logged in the last {days}d")
+        return
+    for r in rows:
+        notes = f"  — {r['notes']}" if r["notes"] else ""
+        typer.echo(f"{r['refused_at']}  {r['reason']:6}  {r['prospect']}  [{r['source']}]{notes}")
+
+
+@refusal_app.command("stats")
+def refusal_stats(days: int = typer.Option(180, "--days")):
+    """Refusal counts by reason + the DIY-share tripwire (honest when empty)."""
+    from gm.core import refusals as refusals_mod
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        stats = refusals_mod.refusal_stats(conn, org_id=org["id"], days=days)
+        conn.rollback()  # read-only
+    by = stats["by_reason"]
+    typer.echo(f"refusals last {days}d: {stats['total']}")
+    typer.echo("  " + " ".join(f"{reason}={by[reason]}" for reason in refusals_mod.REASONS))
+    if stats["diy_share"] is None:
+        typer.echo("DIY share: no refusals logged")
+    else:
+        typer.echo(f"DIY share: {stats['diy_share']:.0%}")
 
 
 @app.command()

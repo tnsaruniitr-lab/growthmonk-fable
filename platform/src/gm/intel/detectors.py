@@ -499,3 +499,140 @@ def handle_compute_queue(ctx: jobs.JobContext) -> None:
         "compute_queue site=%s basis=%s counts=%s skipped=%s",
         site_id, result["basis"], result["counts"], result["skipped"],
     )
+
+
+# --- unified at_stake presentation (Phase D4, WP-J) -------------------------------------
+
+# Kinds whose at_stake carries est_clicks_gain (the four GSC detectors above).
+_CLICKS_GAIN_KINDS = frozenset(
+    {"striking_distance", "ctr_outlier", "decay", "cannibalization"}
+)
+
+
+def _num(value) -> float | None:
+    """float(value) when it is a real number; None otherwise (bool is not a number)."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return None
+
+
+def _not_quantified(kind, at_stake) -> dict:
+    """The honest fallback: unknown kind or missing fields — never a fake zero."""
+    return {
+        "kind": kind,
+        "headline": "at stake: not quantified",
+        "detail": json.dumps(at_stake, sort_keys=True, separators=(",", ":"), default=str),
+        "value": None,
+        "unit": None,
+    }
+
+
+def normalize_at_stake(item: dict) -> dict:
+    """Unified PRESENTATION of a queue_items row's heterogeneous at_stake payloads.
+
+    Pure — no conn, no I/O; the raw at_stake rows stay untouched. Takes a
+    queue_items row dict ("kind", "target", "at_stake") and returns
+    {"kind", "headline", "detail", "value": float|None, "unit": str|None}.
+
+    Per kind:
+    - striking_distance / ctr_outlier / decay / cannibalization:
+      value=est_clicks_gain, unit="clicks/mo", headline "+{value:g} clicks/mo",
+      detail from position/ctr/drop_pct (whichever the detector recorded).
+    - keyword_gap: value=volume, unit="searches/mo",
+      detail "best: {best_competitor} at #{their_position}".
+    - competitor_candidate: value=intersections, unit="shared keywords",
+      detail from avg_position/their_etv ("no data yet" when both are absent).
+    - local_presence: value/unit=None, headline=at_stake["issue"],
+      detail "packs on {queries_with_pack} tracked queries".
+
+    Unknown kind / missing fields -> value None, headline "at stake: not
+    quantified", detail = compact raw JSON — honest, never a fake zero.
+    """
+    kind = item.get("kind")
+    at_stake = item.get("at_stake")
+    if not isinstance(at_stake, dict):
+        return _not_quantified(kind, at_stake)
+
+    if kind in _CLICKS_GAIN_KINDS:
+        gain = _num(at_stake.get("est_clicks_gain"))
+        if gain is None:
+            return _not_quantified(kind, at_stake)
+        parts: list[str] = []
+        position = _num(at_stake.get("position"))
+        if position is not None:
+            parts.append(f"position {position:g}")
+        ctr = _num(at_stake.get("ctr"))
+        if ctr is not None:
+            parts.append(f"ctr {ctr:.2%}")
+        expected = _num(at_stake.get("expected_ctr"))
+        if expected is not None:
+            parts.append(f"expected {expected:.2%}")
+        drop_pct = _num(at_stake.get("drop_pct"))
+        if drop_pct is not None:
+            parts.append(f"down {drop_pct:.0%} vs prior 28d")
+        yoy_drop_pct = _num(at_stake.get("yoy_drop_pct"))
+        if yoy_drop_pct is not None:
+            parts.append(f"down {yoy_drop_pct:.0%} vs last year")
+        pages = at_stake.get("pages")
+        if isinstance(pages, list) and pages:
+            parts.append(f"{len(pages)} pages competing")
+        return {
+            "kind": kind,
+            "headline": f"+{gain:g} clicks/mo",
+            "detail": ", ".join(parts) if parts else "no data yet",
+            "value": gain,
+            "unit": "clicks/mo",
+        }
+
+    if kind == "keyword_gap":
+        volume = _num(at_stake.get("volume"))
+        if volume is None:
+            return _not_quantified(kind, at_stake)
+        competitor = at_stake.get("best_competitor")
+        position = _num(at_stake.get("their_position"))
+        if competitor and position is not None:
+            detail = f"best: {competitor} at #{position:g}"
+        else:
+            detail = "no data yet"
+        return {
+            "kind": kind,
+            "headline": f"{volume:g} searches/mo",
+            "detail": detail,
+            "value": volume,
+            "unit": "searches/mo",
+        }
+
+    if kind == "competitor_candidate":
+        intersections = _num(at_stake.get("intersections"))
+        if intersections is None:
+            return _not_quantified(kind, at_stake)
+        parts = []
+        avg_position = _num(at_stake.get("avg_position"))
+        if avg_position is not None:
+            parts.append(f"avg position {avg_position:g}")
+        their_etv = _num(at_stake.get("their_etv"))
+        if their_etv is not None:
+            parts.append(f"their traffic value {their_etv:g}")
+        return {
+            "kind": kind,
+            "headline": f"{intersections:g} shared keywords",
+            "detail": ", ".join(parts) if parts else "no data yet",
+            "value": intersections,
+            "unit": "shared keywords",
+        }
+
+    if kind == "local_presence":
+        issue = at_stake.get("issue")
+        if not isinstance(issue, str) or not issue:
+            return _not_quantified(kind, at_stake)
+        packs = _num(at_stake.get("queries_with_pack"))
+        detail = f"packs on {packs:g} tracked queries" if packs is not None else "no data yet"
+        return {
+            "kind": kind,
+            "headline": issue,
+            "detail": detail,
+            "value": None,
+            "unit": None,
+        }
+
+    return _not_quantified(kind, at_stake)

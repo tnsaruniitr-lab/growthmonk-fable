@@ -24,7 +24,12 @@ elapsed snooze, actioned/done rows are never touched, vanished targets remain.
 
 Cost: Labs live tasks bill $0.01/task + $0.0001/returned row. We record the
 response envelope's `cost` field (dollars -> cents) when present, else fall
-back to that formula; one cost_event per competitor call.
+back to that formula; one cost_event per competitor call. Phase D4 (WP-I):
+keyword_gap checks spend.require_dfs_budget ONCE before the paid competitor
+loop and, on BudgetExceeded, returns a zero-cost result whose note carries the
+refusal — recorded in the job result, never silently skipped. The relevance
+filter is v2 (bigram hit OR >= RELEVANCE_THRESHOLD meaningful-token overlap,
+v1 single-token fallback, empty signal passes everything).
 """
 
 from __future__ import annotations
@@ -463,21 +468,60 @@ _RELEVANCE_STOPWORDS = frozenset(
     "the and for with how what why when where best top free your our near".split()
 )
 
+# Keep a multi-token candidate when at least half its meaningful tokens are on-topic.
+RELEVANCE_THRESHOLD = 0.5
 
-def _relevance_terms(conn: psycopg.Connection, site_id) -> set[str]:
-    """Topic tokens from the site's own tracked queries + brand terms. Empty set
-    means no topical signal is configured — the gap filter then passes everything
-    through (small same-vertical competitors need no filter; the filter exists for
-    giant content-publisher competitors whose top keywords span every topic)."""
-    terms: set[str] = set()
+
+def _relevance_signal(conn: psycopg.Connection, site_id) -> dict[str, set[str]]:
+    """Topic signal from the site's own tracked queries + brand terms (filter v2).
+
+    {"tokens": set[str], "bigrams": set[str]} — tokens filtered as v1 (len >= 3,
+    minus _RELEVANCE_STOPWORDS), bigrams = adjacent RAW-token pairs ("dental
+    clinic"). An empty signal means no topical signal is configured — the gap
+    filter then passes everything through (small same-vertical competitors need
+    no filter; the filter exists for giant content-publisher competitors whose
+    top keywords span every topic)."""
+    tokens: set[str] = set()
+    bigrams: set[str] = set()
+
+    def _add(text: str) -> None:
+        raw = text.lower().split()
+        tokens.update(raw)
+        bigrams.update(f"{a} {b}" for a, b in zip(raw, raw[1:], strict=False))
+
     for r in conn.execute(
         "select query_norm from tracked_queries where site_id=%s and active", (site_id,)
     ).fetchall():
-        terms.update(r["query_norm"].split())
+        _add(r["query_norm"])
     row = conn.execute("select brand_terms from sites where id=%s", (site_id,)).fetchone()
     for t in (row["brand_terms"] if row else None) or []:
-        terms.update(t.lower().split())
-    return {t for t in terms if len(t) >= 3 and t not in _RELEVANCE_STOPWORDS}
+        _add(t)
+    return {
+        "tokens": {t for t in tokens if len(t) >= 3 and t not in _RELEVANCE_STOPWORDS},
+        "bigrams": bigrams,
+    }
+
+
+def _passes_relevance(query: str, signal: dict[str, set[str]]) -> bool:
+    """Filter v2 keep rule for one candidate query against `_relevance_signal`.
+
+    (1) any adjacent candidate bigram in signal.bigrams -> keep; else
+    (2) |candidate meaningful tokens ∩ signal.tokens| / |candidate meaningful
+        tokens| >= RELEVANCE_THRESHOLD -> keep; but
+    (3) single-meaningful-token candidates, or a signal with NO derivable
+        bigrams, fall back to v1's any-token-overlap rule; and
+    (4) an empty signal passes everything (unchanged: no signal = no filter).
+    """
+    tokens, bigrams = signal["tokens"], signal["bigrams"]
+    if not tokens and not bigrams:
+        return True  # (4) no topical signal configured -> no filter
+    raw = query.split()
+    if bigrams and any(f"{a} {b}" in bigrams for a, b in zip(raw, raw[1:], strict=False)):
+        return True  # (1) bigram hit
+    meaningful = {t for t in raw if len(t) >= 3 and t not in _RELEVANCE_STOPWORDS}
+    if not bigrams or len(meaningful) < 2:
+        return bool(tokens & set(raw))  # (3) v1 fallback: any token overlap
+    return len(meaningful & tokens) / len(meaningful) >= RELEVANCE_THRESHOLD  # (2)
 
 
 def keyword_gap(
@@ -510,8 +554,24 @@ def keyword_gap(
             "note": "no competitor_domains configured for this site; keyword gap skipped",
         }
 
+    # Phase D4 (WP-I): budget guard, checked ONCE before the paid competitor loop.
+    # A refusal is recorded in the job result's note, never silently skipped, and
+    # costs $0 — nothing was purchased yet. Lazy import: no module-level cycle.
+    from gm.intel.spend import BudgetExceeded, require_dfs_budget
+
+    try:
+        require_dfs_budget(conn)
+    except BudgetExceeded as exc:
+        return {
+            "competitors": competitors,
+            "candidates": 0,
+            "queued": 0,
+            "cost_cents": 0.0,
+            "note": str(exc),
+        }
+
     present = _client_present_queries(conn, site_id)
-    relevance = _relevance_terms(conn, site_id)
+    relevance = _relevance_signal(conn, site_id)
     labs_client = labs_client or LabsClient()
 
     best: dict[str, dict] = {}
@@ -539,7 +599,7 @@ def keyword_gap(
             query = row["query_norm"]
             if query in present:
                 continue
-            if relevance and not (relevance & set(query.split())):
+            if not _passes_relevance(query, relevance):
                 continue  # off-topic for this site (giant-competitor blog noise)
             current = best.get(query)
             # best-of dedupe across competitors: lowest position, then highest volume

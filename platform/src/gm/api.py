@@ -34,9 +34,10 @@ from typing import Annotated
 import psycopg
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from pydantic import BaseModel
 
 from gm import db
-from gm.delivery import report, shares, whatsapp
+from gm.delivery import console, report, shares, whatsapp
 
 log = logging.getLogger(__name__)
 
@@ -88,6 +89,10 @@ def _connect() -> psycopg.Connection:
 
 
 app = FastAPI(title="growthmonk", docs_url=None, redoc_url=None, openapi_url=None)
+
+# Phase D4 operator console (WP-H): /admin/ui + its five JSON endpoints, each
+# carrying console.py's local copy of the _require_admin guard.
+app.include_router(console.router)
 
 
 @app.get("/healthz")
@@ -305,6 +310,87 @@ def admin_site_competitors(site_id: str):
             raise HTTPException(status_code=404) from exc
         conn.rollback()
     return position
+
+
+@app.get("/admin/spend", dependencies=_admin)
+def admin_spend(days: int = 30):
+    """Provider spend rollup + live DataForSEO balance + monthly budget rail
+    (Phase D4 WP-WIRE over WP-I's gm.intel.spend; the console's #spend section
+    consumes this). Read-only; every sub-payload keeps WP-I's honesty rules:
+    balance None + note when unreachable, cap None when unconfigured, and a
+    projection only when there is real spend to project from.
+    """
+    days = max(1, min(int(days), 365))
+    # Lazy import keeps API startup light (admin_site_competitors precedent).
+    from gm.intel import spend as spend_mod
+
+    with _connect() as conn:
+        rollup = spend_mod.spend_rollup(conn, days=days)
+        budget = spend_mod.budget_state(conn)
+        conn.rollback()  # read-only
+    # The balance call is network-bound (free endpoint, never raises) — made
+    # outside the connection context so a slow provider never holds a txn open.
+    return {"rollup": rollup, "balance": spend_mod.dataforseo_balance(), "budget": budget}
+
+
+class _RefusalIn(BaseModel):
+    """POST /admin/refusals body — prospect/reason required, rest optional
+    (defaults mirror gm.core.refusals.add_refusal)."""
+
+    prospect: str
+    reason: str
+    source: str = "agency_pitch"
+    notes: str | None = None
+    refused_at: dt.date | None = None
+
+
+def _sole_org(conn) -> dict:
+    """The refusal ledger is org-scoped but the admin surface is org-less:
+    cli.py's `_org` rule (exactly-one-org holds through Phase D)."""
+    from gm.core.panel import get_default_org
+
+    return get_default_org(conn)
+
+
+@app.get("/admin/refusals", dependencies=_admin)
+def admin_refusals(days: int = 180):
+    """Refusal ledger + stats over the window (Phase D4 WP-WIRE over WP-J's
+    gm.core.refusals). stats.diy_share is None when nothing is logged — the
+    tripwire must never read an empty ledger as 0% DIY."""
+    days = max(1, min(int(days), 3650))
+    from gm.core import refusals as refusals_mod
+
+    with _connect() as conn:
+        org = _sole_org(conn)
+        rows = refusals_mod.list_refusals(conn, org_id=org["id"], days=days)
+        stats = refusals_mod.refusal_stats(conn, org_id=org["id"], days=days)
+        conn.rollback()  # read-only
+    return {"refusals": rows, "stats": stats}
+
+
+@app.post("/admin/refusals", dependencies=_admin)
+def admin_refusal_add(body: _RefusalIn):
+    """Log one refusal. A bad reason is a 400 carrying add_refusal's typed
+    ValueError message verbatim (validated BEFORE the insert — no row lands)."""
+    from gm.core import refusals as refusals_mod
+
+    with _connect() as conn:
+        org = _sole_org(conn)
+        try:
+            rid = refusals_mod.add_refusal(
+                conn,
+                org_id=org["id"],
+                prospect=body.prospect,
+                reason=body.reason,
+                source=body.source,
+                notes=body.notes,
+                refused_at=body.refused_at,
+            )
+        except ValueError as exc:
+            conn.rollback()
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        conn.commit()
+    return {"id": rid}
 
 
 # ---------------------------------------------------------------------------

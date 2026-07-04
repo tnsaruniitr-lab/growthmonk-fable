@@ -12,7 +12,10 @@ is treated as transient (retryable=True, caller may re-enqueue).
 `get_snapshot` / `get_volumes` are the reuse-before-buy cache layer: they serve
 rows from serp_snapshots / keyword_metrics within a TTL and only hit the paid
 API for misses, recording a cost_event (response `cost` is dollars -> cents)
-on every purchase.
+on every purchase. Phase D4 (WP-I): the purchase path (and ONLY the purchase
+path — cache hits stay free and unguarded) calls spend.require_dfs_budget
+first, so a reached GM_DFS_MONTHLY_BUDGET_CENTS cap refuses BEFORE spending
+with a non-retryable BudgetExceeded that lands in jobs.last_error.
 
 Retry/backoff below is a local copy of the engines pattern
 (gm/intel/engines/__init__.py) raising SerpError instead of EngineError.
@@ -422,6 +425,9 @@ def get_snapshot(
             "depth": row["depth"],
             "fresh": False,
         }
+    from gm.intel.spend import require_dfs_budget  # lazy: purchase path only, no import cycle
+
+    require_dfs_budget(conn)  # refuse BEFORE spending; cache hits above stay free
     org_id = _site_org(conn, site_id)
     client = client or DataForSeoClient()
     result = client.serp_live(query, location=location, depth=depth)
@@ -497,6 +503,9 @@ def get_volumes(
     missing = [q for q in wanted if q not in out]
     if not missing:
         return out
+    from gm.intel.spend import require_dfs_budget  # lazy: purchase path only, no import cycle
+
+    require_dfs_budget(conn)  # refuse BEFORE spending; cached rows above stay free
     org_id = _site_org(conn, site_id)
     client = client or DataForSeoClient()
     fetched = client.search_volume(missing)

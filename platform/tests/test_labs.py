@@ -16,6 +16,7 @@ import uuid
 import httpx
 import pytest
 
+from gm.infra.costs import record_cost
 from gm.intel import labs as labs_mod
 from gm.intel.labs import LabsClient, SerpError, keyword_gap
 
@@ -29,6 +30,12 @@ LOGIN, PASSWORD = "login@example.com", "s3cret"
 @pytest.fixture(autouse=True)
 def no_sleep(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(labs_mod, "_sleep", lambda _s: None)
+
+
+@pytest.fixture(autouse=True)
+def no_budget_cap(monkeypatch: pytest.MonkeyPatch):
+    """Hermetic: an ambient GM_DFS_MONTHLY_BUDGET_CENTS must not refuse unrelated tests."""
+    monkeypatch.delenv("GM_DFS_MONTHLY_BUDGET_CENTS", raising=False)
 
 
 def make_client(responses: list[tuple[int, object]]) -> tuple[httpx.Client, list[httpx.Request]]:
@@ -622,3 +629,224 @@ def test_handle_keyword_gap_requires_site(conn):
     site = make_site(conn, [])
     with pytest.raises(RuntimeError, match="site_id"):
         labs_mod.handle_keyword_gap(jobs.JobContext(_job(site, site_id=None), conn, "w", 60))
+
+
+# --- relevance filter v2 (Phase D4, WP-I) ----------------------------------------------
+# v1 kept a candidate when ANY single token overlapped the signal — a giant
+# publisher's "dubai visa requirements" slipped past a dental clinic's filter on
+# "dubai" alone. v2: bigram hit OR >= RELEVANCE_THRESHOLD meaningful-token
+# overlap, with v1 as the fallback for single-token candidates / bigram-less
+# signals, and the empty-signal pass-through unchanged (existing keyword_gap
+# tests above run signal-less sites and keep their expectations verbatim).
+
+
+SIGNAL = {
+    "tokens": {"dental", "clinic", "dubai", "teeth", "whitening", "veneers"},
+    "bigrams": {
+        "dental clinic", "clinic dubai", "teeth whitening", "whitening dubai", "veneers dubai",
+    },
+}
+
+
+class TestPassesRelevanceV2:
+    def test_empty_signal_passes_everything(self):
+        empty = {"tokens": set(), "bigrams": set()}
+        assert labs_mod._passes_relevance("anything at all", empty)
+        assert labs_mod._passes_relevance("air fryer recipe", empty)
+
+    def test_bigram_hit_keeps_even_below_the_token_ratio(self):
+        # meaningful overlap is 2/6 < 0.5, but "dental clinic" is a signal bigram
+        q = "cheapest emergency dental clinic appointment offers"
+        assert labs_mod._passes_relevance(q, SIGNAL)
+
+    def test_ratio_boundary_half_keeps_below_half_drops(self):
+        assert labs_mod.RELEVANCE_THRESHOLD == 0.5
+        assert labs_mod._passes_relevance("veneers cost", SIGNAL)  # 1/2 == 0.5: kept
+        # exactly the v1 survivor class v2 exists to kill: one stray token in three
+        assert not labs_mod._passes_relevance("dubai visa requirements", SIGNAL)
+
+    def test_single_meaningful_token_falls_back_to_v1(self):
+        assert labs_mod._passes_relevance("veneers", SIGNAL)
+        assert not labs_mod._passes_relevance("crypto", SIGNAL)
+        # stopwords leave one meaningful token -> still the v1 any-overlap rule
+        assert labs_mod._passes_relevance("best veneers", SIGNAL)
+        assert not labs_mod._passes_relevance("best crypto", SIGNAL)
+
+    def test_zero_meaningful_tokens_drop_without_crashing(self):
+        assert not labs_mod._passes_relevance("how to", SIGNAL)
+
+    def test_bigramless_signal_falls_back_to_v1_for_multi_token_candidates(self):
+        signal = {"tokens": {"botox", "fillers"}, "bigrams": set()}
+        # the 0.5 ratio would drop 1/4; a bigram-less signal is too weak for it
+        assert labs_mod._passes_relevance("botox aftercare tips guide", signal)
+        assert not labs_mod._passes_relevance("crypto trading tips guide", signal)
+
+
+def _track(conn, site, *queries: str) -> None:
+    for q in queries:
+        conn.execute(
+            "insert into tracked_queries (org_id, site_id, query_norm) values (%s, %s, %s)",
+            (site["org_id"], site["site_id"], q),
+        )
+
+
+@requires_db
+def test_relevance_signal_tokens_and_bigrams(conn):
+    site = make_site(conn, [])
+    _track(conn, site, "best dental clinic near me", "veneers dubai")
+    conn.execute(
+        "insert into tracked_queries (org_id, site_id, query_norm, active)"
+        " values (%s, %s, 'inactive topic', false)",
+        (site["org_id"], site["site_id"]),
+    )
+    conn.execute(
+        "update sites set brand_terms = %s where id = %s",
+        (["Glow Dental"], site["site_id"]),
+    )
+    signal = labs_mod._relevance_signal(conn, site["site_id"])
+    # tokens filtered as v1: len >= 3, minus stopwords ("best", "near"), "me" too short;
+    # the inactive tracked query contributes nothing
+    assert signal["tokens"] == {"dental", "clinic", "veneers", "dubai", "glow"}
+    # bigrams are adjacent RAW-token pairs (stopwords included)
+    assert signal["bigrams"] == {
+        "best dental", "dental clinic", "clinic near", "near me", "veneers dubai", "glow dental",
+    }
+
+
+@requires_db
+def test_keyword_gap_relevance_v2_end_to_end(conn):
+    site = make_site(conn, ["giant-publisher.com"])
+    _track(conn, site, "dental clinic dubai", "teeth whitening dubai")
+    fake = FakeLabs({
+        "giant-publisher.com": [
+            gap_row("emergency dental clinic abu dhabi"),  # bigram "dental clinic"
+            gap_row("teeth whitening cost"),               # bigram "teeth whitening"
+            gap_row("dubai dental prices"),                # ratio 2/3 >= 0.5
+            gap_row("whitening"),                          # single token -> v1 fallback, kept
+            gap_row("dubai visa requirements"),            # ratio 1/3: dropped (v1 kept it)
+            gap_row("air fryer recipes"),                  # no overlap: dropped by v1 and v2
+            gap_row("crypto"),                             # single token, no overlap: dropped
+        ]
+    })
+    result = _run(conn, site, fake)
+    queued = {r["target"]["query"] for r in _items(conn, site["site_id"])}
+    assert queued == {
+        "emergency dental clinic abu dhabi", "teeth whitening cost",
+        "dubai dental prices", "whitening",
+    }
+    assert result["candidates"] == result["queued"] == 4
+
+
+@requires_db
+def test_giant_publisher_noise_209_to_15_regression(conn):
+    """209 candidates from a giant publisher -> exactly the 15 on-topic survive.
+
+    Also proves the contract's dominance property on this fixture: v2 keeps ONLY
+    queries the v1 single-token rule would also keep (at least as hard on noise)
+    while keeping EVERY on-topic v1 survivor (no on-topic regressions).
+    """
+    site = make_site(conn, ["giant-publisher.com"])
+    _track(conn, site, "dental clinic dubai", "teeth whitening dubai", "veneers dubai")
+    conn.execute(
+        "update sites set brand_terms = %s where id = %s",
+        (["Glow Dental"], site["site_id"]),
+    )
+
+    on_topic = [
+        "emergency dental clinic",          # bigram
+        "dental clinic near marina",        # bigram
+        "best dental clinic dubai",         # bigram
+        "teeth whitening at home",          # bigram
+        "laser teeth whitening offers",     # bigram
+        "teeth whitening dubai price",      # bigram
+        "porcelain veneers dubai",          # bigram
+        "composite veneers dubai cost",     # bigram
+        "veneers dubai deals",              # bigram
+        "glow dental reviews",              # brand bigram
+        "dubai dental implants",            # ratio 2/3
+        "dental veneers",                   # ratio 2/2
+        "teeth cleaning dubai",             # ratio 2/3
+        "whitening strips",                 # ratio 1/2 boundary
+        "veneers",                          # single token, v1 fallback
+    ]
+    # v1 survivors v2 must kill: exactly one stray signal token ("dubai") among
+    # three meaningful tokens — a giant publisher's city-wide content noise.
+    stray_token_noise = [f"dubai living guide {i}" for i in range(44)]
+    # pure noise: no signal token at all, dropped by v1 and v2 alike
+    pure_noise = [f"air fryer recipe {i}" for i in range(150)]
+    candidates = on_topic + stray_token_noise + pure_noise
+    assert len(candidates) == 209
+
+    fake = FakeLabs({"giant-publisher.com": [gap_row(q) for q in candidates]})
+    result = _run(conn, site, fake)
+    kept = {r["target"]["query"] for r in _items(conn, site["site_id"])}
+    assert result["candidates"] == result["queued"] == 15
+    assert kept == set(on_topic)
+
+    signal = labs_mod._relevance_signal(conn, site["site_id"])
+
+    def v1_keep(q: str) -> bool:  # the pre-D4 single-token rule
+        return bool(signal["tokens"] & set(q.split()))
+
+    assert all(v1_keep(q) for q in kept)                # v2 ⊆ v1: at least as hard on noise
+    assert {q for q in on_topic if v1_keep(q)} <= kept  # every on-topic v1 survivor kept
+
+
+# --- budget rail (Phase D4, WP-I) --------------------------------------------------------
+
+
+@requires_db
+class TestKeywordGapBudgetRefusal:
+    def test_refusal_note_and_zero_spend(self, conn, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("GM_DFS_MONTHLY_BUDGET_CENTS", "1")
+        site = make_site(conn, ["comp-a.ae"])
+        record_cost(
+            conn, provider="dataforseo", purpose="serp_live", cost_cents=2.0,
+            org_id=site["org_id"],
+        )
+        fake = FakeLabs({"comp-a.ae": [gap_row("kw", volume=100)]})
+        result = _run(conn, site, fake)
+        assert result["competitors"] == ["comp-a.ae"]
+        assert result["candidates"] == 0
+        assert result["queued"] == 0
+        assert result["cost_cents"] == 0.0
+        assert "budget exceeded" in result["note"]  # the refusal is recorded, never silent
+        assert fake.calls == []                     # refused BEFORE the competitor loop
+        assert _items(conn, site["site_id"]) == []
+        # only the planted event remains: the refusal itself cost $0
+        assert conn.execute("select count(*) as n from cost_events").fetchone()["n"] == 1
+
+    def test_under_cap_proceeds_normally(self, conn, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("GM_DFS_MONTHLY_BUDGET_CENTS", "1000")
+        site = make_site(conn, ["comp-a.ae"])
+        fake = FakeLabs({"comp-a.ae": [gap_row("kw under cap", volume=100)]})
+        result = _run(conn, site, fake)
+        assert result["queued"] == 1
+        assert result["note"] is None
+
+    def test_no_competitors_note_wins_over_budget(self, conn, monkeypatch: pytest.MonkeyPatch):
+        # 0-cent cap is exceeded even at zero spend, but a site with no
+        # competitors never reaches the paid loop — its own honest note wins.
+        monkeypatch.setenv("GM_DFS_MONTHLY_BUDGET_CENTS", "0")
+        site = make_site(conn, [])
+        result = _run(conn, site, FakeLabs({}))
+        assert "no competitor_domains" in result["note"]
+
+    def test_handler_records_refusal_without_raising(
+        self, conn, monkeypatch: pytest.MonkeyPatch
+    ):
+        from gm.infra import jobs
+
+        monkeypatch.setenv("GM_DFS_MONTHLY_BUDGET_CENTS", "1")
+        site = make_site(conn, ["comp-a.ae"])
+        record_cost(
+            conn, provider="dataforseo", purpose="serp_live", cost_cents=5.0,
+            org_id=site["org_id"],
+        )
+        fake = FakeLabs({"comp-a.ae": [gap_row("kw", volume=80)]})
+        monkeypatch.setattr(labs_mod, "LabsClient", lambda: fake)
+        # the refusal lands in the job RESULT (logged note), not an exception:
+        # the job completes without spending and without queueing anything
+        labs_mod.handle_keyword_gap(jobs.JobContext(_job(site), conn, "w", 60))
+        assert fake.calls == []
+        assert _items(conn, site["site_id"]) == []
