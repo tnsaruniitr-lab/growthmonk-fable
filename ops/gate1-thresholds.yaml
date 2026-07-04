@@ -1,8 +1,8 @@
 # Gate-1 pre-registered thresholds
-# STATUS: DRAFT — must be reviewed and LOCKED before 2026-07-07 (research commitment).
-# After locking, this file is append-only: changes invalidate the pre-registration.
-status: DRAFT
-locked_at: null
+# STATUS: LOCKED 2026-07-04 (operator sign-off in session; deadline was 2026-07-07).
+# This file is now append-only: changes invalidate the pre-registration.
+status: LOCKED
+locked_at: 2026-07-04
 
 panel:
   prompts_per_site: 5
