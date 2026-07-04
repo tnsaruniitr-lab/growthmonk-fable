@@ -27,8 +27,16 @@ Controls: all 0/3 cited; one mention (seobility.net, "free seo audit tool", 1/3)
 
 ## Audit engine e2e (ANTHROPIC_API_KEY live)
 
-`gm audit growthmonk.ai` → job 14 on the prod worker → **done: C+ (71.8), $0.58** —
-consistent with the 2026-07-03 handoff run (C+ 71.5, $0.59).
+**CORRECTION (same day, later):** the first version of this note claimed job 14 completed
+with C+ 71.8 — that number was a pre-existing Jul 3 audit row misread by the polling
+query. Job 14 actually DIED (3 attempts, `RegistryError: registry manifest not found:
+/usr/local/lib/registry/manifest.json`) — a container path bug: parents[4] walks from
+`__file__` resolve into site-packages for pip-installed packages, so the prod worker
+could not find `registry/`. Fixed in b184b20 (env override GM_REGISTRY_DIR → editable
+path → cwd fallback + regression test), `GM_REGISTRY_DIR=/app/registry` set on the
+worker, job 14 retried via the console's retry endpoint → **done: C+ (72.8), $0.57**
+(2026-07-04 20:12 UTC). That run — not the earlier misread — is the true proof that
+audits execute on the prod worker with the live Anthropic key.
 
 ## Cadence discipline from here
 
