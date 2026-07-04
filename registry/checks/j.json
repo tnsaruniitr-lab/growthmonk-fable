@@ -98,5 +98,83 @@
       "Dead sameAs links signal neglected entity management. AI systems that follow sameAs to verify identity will find dead ends — weakening trust."
     ],
     "notes": "Verification requires fetching external profile URLs (outbound fetches beyond the audited page)."
+  },
+  {
+    "check_id": "J-05",
+    "check_version": 1,
+    "category": "J",
+    "category_name": "Entity Consistency",
+    "name": "GBP Presence & Completeness",
+    "description": "Looks for the business in the Google local pack observed for its tracked queries and checks the newest matching entry for the core listing fields: title, rating, votes, phone, url. A missing or incomplete Google Business Profile suppresses local visibility on every query that shows a pack.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Pure DB read over stored serp_snapshots local-pack entries (gm/intel/local_presence.py); never reaches the classifier",
+    "badge": "measured",
+    "criteria": {
+      "pass": "Your newest local-pack entry carries title, rating, votes, phone, and url",
+      "warn": "You appear in a local pack but at least one core field (title/rating/votes/phone/url) is absent from the newest entry",
+      "fail": "Local packs were observed for tracked queries but you appear in none of them",
+      "inconclusive": "No local pack observed for any tracked query (or only legacy snapshots without entry data)"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "local_listing",
+    "fix_template": "Claim and complete the Google Business Profile: verify the listing, then fill in the business name, phone number, and website URL so the local-pack entry is complete. Operator-executed on the client's own listing.",
+    "sources": [
+      "Minted in Phase D3 (growthmonk local-presence family, docs/phase-d3-contracts.md) — not from the aeo-seo-auditor ruleset. Local-pack presence is measured from SERP snapshots the platform already buys weekly; an unobserved pack is reported honestly as inconclusive, never guessed."
+    ],
+    "notes": "Diagnostic only. Graded deterministically from stored local-pack sightings; requires DB/site context — 'na' on pre-publish drafts and on competitor_reference/comparison audits (client-site diagnostic)."
+  },
+  {
+    "check_id": "J-06",
+    "check_version": 1,
+    "category": "J",
+    "category_name": "Entity Consistency",
+    "name": "NAP Consistency Across Sightings",
+    "description": "Compares your local-pack entries across every tracked-query sighting: business name (title), phone, and domain must present one identity. Conflicting name/phone data, or a listing that points at a foreign domain, fragments the entity and erodes local ranking trust.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Cross-ref of title/phone/domain across stored local-pack sightings (gm/intel/local_presence.py); never reaches the classifier",
+    "badge": "measured",
+    "criteria": {
+      "pass": "One folded name+phone identity across all attributable sightings, and the listing domain matches the site's domain_norm",
+      "warn": "Minor name/phone variants that differ by case or whitespace only",
+      "fail": "Conflicting phone numbers or business names across sightings, or the listing points at a foreign domain",
+      "inconclusive": "Fewer than 2 attributable local-pack sightings in the window"
+    },
+    "weight": 2,
+    "severity": "medium",
+    "fix_type": "local_listing",
+    "fix_template": "Standardize the business name, phone number, and website URL on the Google Business Profile and every directory listing to one canonical NAP identity. Operator-executed on the client's own listings.",
+    "sources": [
+      "Minted in Phase D3 (growthmonk local-presence family, docs/phase-d3-contracts.md) — not from the aeo-seo-auditor ruleset. NAP consistency is the local analogue of J-01: name/phone/domain variants fragment entity recognition across Google's local stack."
+    ],
+    "notes": "Diagnostic only. Graded deterministically from stored local-pack sightings; requires DB/site context — 'na' on pre-publish drafts and on competitor_reference/comparison audits (client-site diagnostic)."
+  },
+  {
+    "check_id": "J-07",
+    "check_version": 1,
+    "category": "J",
+    "category_name": "Entity Consistency",
+    "name": "Review Signal vs Local Pack",
+    "description": "Compares your rating and review count against the medians of the other entries in your newest local-pack sighting. A below-median review signal costs local-pack clicks even when you appear. Diagnostic only: the platform measures the signal and never generates, drafts, solicits, templates, or automates reviews.",
+    "applies_to": ["all"],
+    "method": "deterministic",
+    "method_detail": "Median comparison over stored local-pack entries (gm/intel/local_presence.py); never reaches the classifier",
+    "badge": "measured",
+    "criteria": {
+      "pass": "Rating >= the pack median rating AND votes >= the pack median votes",
+      "warn": "Below the median rating or below the median votes",
+      "fail": "Rating more than 0.5 below the pack median, or votes below half the pack median",
+      "inconclusive": "Your rating/votes, or every competitor's, are unobserved in the newest sighting"
+    },
+    "weight": 1,
+    "severity": "low",
+    "fix_type": "offpage_entity",
+    "fix_template": "Raise the review signal only through the client's own legitimate in-person review-request process (e.g. staff asking satisfied customers at checkout). Never generate, purchase, template, or automate reviews — this check is diagnostic only.",
+    "sources": [
+      "Minted in Phase D3 (growthmonk local-presence family, docs/phase-d3-contracts.md) — not from the aeo-seo-auditor ruleset. Review volume and rating relative to the pack neighbours drive local-pack click share; the platform only measures the gap (do-not-build list, docs/01-product.md §6)."
+    ],
+    "notes": "Diagnostic only — no fix-closer path consumes this check. Graded deterministically from stored local-pack sightings; requires DB/site context — 'na' on pre-publish drafts and on competitor_reference/comparison audits (client-site diagnostic)."
   }
 ]

@@ -134,12 +134,12 @@ def test_real_brain_snapshot_sizes(real_brain):
 
 def test_real_registry_coverage_at_least_30(real_brain):
     registry = load_registry()
-    assert len(registry.checks) == 103
+    assert len(registry.checks) == 106  # 103 extracted + D3 local-presence family (J-05..07)
     covered = [
         cid for cid in registry.checks
         if rank_citations(cid, brain=real_brain)
     ]
-    assert len(covered) >= 30, f"only {len(covered)} of 103 checks resolve to a citation"
+    assert len(covered) >= 30, f"only {len(covered)} of 106 checks resolve to a citation"
 
 
 def test_real_every_citation_has_source_url_and_shape(real_brain):

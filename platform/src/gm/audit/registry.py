@@ -27,6 +27,9 @@ VALID_BADGES = frozenset({
 VALID_FIX_TYPES = frozenset({
     "page_html", "schema", "content_restructure", "sitewide_template",
     "cms_constraint", "offpage_entity", "cannot_fix_from_page",
+    "local_listing",  # directory-listing fix class (phase D3, roadmap Phase D §6) —
+                      # operator-executed on the client's own listings, like levers;
+                      # no fix-closer path consumes it.
 })
 
 _LEADING_LETTER = re.compile(r"^([A-Za-z])")

@@ -25,6 +25,7 @@ from psycopg.types.json import Jsonb
 
 from gm import config, db
 from gm.core import panel as panel_mod
+from gm.core import schedules as schedules_mod
 from gm.delivery import evidence
 from gm.infra import jobs as jobs_mod
 from gm.infra import scheduler as scheduler_mod
@@ -68,12 +69,24 @@ def org_create(name: str):
     typer.echo(org_id)
 
 
+def _echo_schedule_result(result: dict) -> None:
+    """Render an ensure_default_schedules result: created/existing/skipped, honestly."""
+    typer.echo(f"schedules created: {', '.join(result['created']) or 'none'}")
+    if result["existing"]:
+        typer.echo(f"schedules existing (untouched): {', '.join(result['existing'])}")
+    for job_type, reason in result["skipped"].items():
+        typer.echo(f"schedules skipped: {job_type} — {reason}")
+
+
 @site_app.command("add")
 def site_add(
     domain: str,
     control: bool = typer.Option(False, "--control", help="Mark as an untouched control domain"),
     brand_term: list[str] = typer.Option([], "--brand-term", help="Extra mention-match strings"),
     notes: str = typer.Option(None, "--notes"),
+    no_schedules: bool = typer.Option(
+        False, "--no-schedules", help="Skip wiring the default schedules (opt-out)"
+    ),
 ):
     with db.connect() as conn:
         org = _org(conn)
@@ -81,8 +94,68 @@ def site_add(
         site_id = panel_mod.add_site(
             conn, org["id"], domain, is_control=control, brand_terms=brand_term, notes=notes
         )
+        schedule_result = None
+        if control:
+            note = "control site — default schedules not wired (controls stay untouched)"
+        elif no_schedules:
+            note = "default schedules skipped (--no-schedules)"
+        else:
+            note = None
+            schedule_result = schedules_mod.ensure_default_schedules(
+                conn, org_id=org["id"], site_id=site_id
+            )
         conn.commit()
     typer.echo(site_id)
+    if schedule_result is not None:
+        _echo_schedule_result(schedule_result)
+    else:
+        typer.echo(note)
+
+
+@site_app.command("backfill-schedules")
+def site_backfill_schedules(
+    domain: str = typer.Argument(None, help="One site; or pass --all for the whole org"),
+    all_sites: bool = typer.Option(False, "--all", help="Every non-control site in the org"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Report only; write nothing"),
+):
+    """Wire the default schedules onto existing sites (idempotent, tuned rows untouched)."""
+    if bool(domain) == all_sites:
+        raise typer.BadParameter("pass exactly one of <domain> or --all")
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        if all_sites:
+            per_site = schedules_mod.backfill_default_schedules(
+                conn, org_id=org["id"], dry_run=dry_run
+            )["sites"]
+        else:
+            site = panel_mod.get_site(conn, org["id"], domain)
+            if site["is_control"]:
+                typer.echo(f"{site['domain_norm']} is a control site — no default schedules")
+                raise typer.Exit(1)
+            if dry_run:
+                to_create, existing, skipped = schedules_mod._plan(conn, site["id"])
+                result = {
+                    "created": [jt for jt, _ in to_create],
+                    "existing": existing,
+                    "skipped": skipped,
+                }
+            else:
+                result = schedules_mod.ensure_default_schedules(
+                    conn, org_id=org["id"], site_id=str(site["id"])
+                )
+            per_site = {site["domain_norm"]: result}
+        if dry_run:
+            conn.rollback()
+        else:
+            conn.commit()
+    if dry_run:
+        typer.echo("DRY RUN — nothing written")
+    if not per_site:
+        typer.echo("no non-control sites in org")
+    for domain_norm, result in per_site.items():
+        typer.echo(f"{domain_norm}:")
+        _echo_schedule_result(result)
 
 
 @prompt_app.command("add")
@@ -142,7 +215,7 @@ def run_list(domain: str):
 @schedule_app.command("add")
 def schedule_add(
     domain: str,
-    every_minutes: int = typer.Option(10080, help="Default weekly"),
+    every_minutes: int = typer.Option(schedules_mod.WEEKLY, help="Default weekly"),
     samples: int = typer.Option(3),
 ):
     with db.connect() as conn:
@@ -199,6 +272,16 @@ def worker(
 
         handle_discover_competitors(ctx)
 
+    def _lazy_assemble_receipt_monthly(ctx: jobs_mod.JobContext) -> None:
+        from gm.core.schedules import handle_assemble_receipt_monthly
+
+        handle_assemble_receipt_monthly(ctx)
+
+    def _lazy_pull_ads_daily(ctx: jobs_mod.JobContext) -> None:
+        from gm.intel.ads_ingest import handle_pull_ads_daily
+
+        handle_pull_ads_daily(ctx)
+
     def _handle_scheduled_run(ctx: jobs_mod.JobContext) -> None:
         payload = ctx.job.payload
         sampler.enqueue_run(
@@ -240,6 +323,8 @@ def worker(
         "send_lead_card": _lazy_send_lead_card,
         "refresh_competitor_profiles": _lazy_refresh_competitor_profiles,
         "discover_competitors": _lazy_discover_competitors,
+        "assemble_receipt_monthly": _lazy_assemble_receipt_monthly,
+        "pull_ads_daily": _lazy_pull_ads_daily,
     }
     stop = threading.Event()
     if with_scheduler:
@@ -635,8 +720,139 @@ def wa_connect(
             (org["id"], site["id"],
              Jsonb({"phone_number_id": phone_number_id, "recipient_wa_id": recipient})),
         )
+        schedule_result = None
+        if not site["is_control"]:
+            schedule_result = schedules_mod.ensure_default_schedules(
+                conn, org_id=org["id"], site_id=str(site["id"])
+            )
         conn.commit()
     typer.echo("whatsapp connected")
+    if schedule_result is not None:
+        _echo_schedule_result(schedule_result)
+
+
+# --- ads: read-only ad-platform connections (Phase D3, WP-G consumed by contract) -----------
+
+ads_app = typer.Typer(
+    help="Ad platform connections — read-only ROAS (google_ads / meta_ads)",
+    no_args_is_help=True,
+)
+app.add_typer(ads_app, name="ads")
+
+_ADS_CHANNELS = ("google_ads", "meta_ads")
+
+
+@ads_app.command("connect")
+def ads_connect(
+    domain: str,
+    channel: str = typer.Option(..., help="google_ads | meta_ads"),
+    customer_id: str = typer.Option(None, help="google_ads: client customer id"),
+    login_customer_id: str = typer.Option(None, help="google_ads: manager (login) customer id"),
+    act_id: str = typer.Option(None, help="meta_ads: ad account id (digits, no act_ prefix)"),
+):
+    """Register a read-only ads connection (tokens stay in env, never stored)."""
+    if channel not in _ADS_CHANNELS:
+        raise typer.BadParameter(f"channel must be one of: {', '.join(_ADS_CHANNELS)}")
+    if channel == "google_ads":
+        if not customer_id or not login_customer_id:
+            raise typer.BadParameter("google_ads needs --customer-id and --login-customer-id")
+        meta = {"customer_id": customer_id, "login_customer_id": login_customer_id}
+    else:
+        if not act_id:
+            raise typer.BadParameter("meta_ads needs --act-id")
+        meta = {"act_id": act_id}
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        conn.execute(
+            "insert into connections (org_id, site_id, kind, meta) values (%s,%s,%s,%s)"
+            " on conflict (site_id, kind) do update"
+            " set meta=excluded.meta, status='ok', last_error=null",
+            (org["id"], site["id"], channel, Jsonb(meta)),
+        )
+        schedule_result = None
+        if not site["is_control"]:
+            schedule_result = schedules_mod.ensure_default_schedules(
+                conn, org_id=org["id"], site_id=str(site["id"])
+            )
+        conn.commit()
+    typer.echo(f"{channel} connected (read-only; tokens stay in env, never stored)")
+    if schedule_result is not None:
+        _echo_schedule_result(schedule_result)
+
+
+@ads_app.command("pull")
+def ads_pull(
+    domain: str,
+    days: int = typer.Option(7, help="Trailing-window re-pull width (platforms restate)"),
+    now: bool = typer.Option(False, "--now", help="Run inline instead of enqueueing"),
+):
+    """Pull daily spend rows for every ok ads connection (one-off; DAILY schedule automates)."""
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        if now:
+            from gm.intel.ads_ingest import pull_ads_daily
+
+            result = pull_ads_daily(conn, org_id=org["id"], site_id=str(site["id"]), days=days)
+            conn.commit()
+            typer.echo(result)
+        else:
+            job_id = jobs_mod.enqueue(
+                conn, type="pull_ads_daily", org_id=org["id"], site_id=str(site["id"]),
+                payload={"days": days},
+                idempotency_key=f"pull_ads_daily:{site['id']}:{dt.date.today().isoformat()}",
+            )
+            conn.commit()
+            typer.echo(f"enqueued job {job_id} (pull_ads_daily days={days})")
+
+
+@ads_app.command("status")
+def ads_status(domain: str):
+    """Ads connections + ads_daily coverage; honest empty states throughout."""
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        conns = conn.execute(
+            "select kind, status, last_ok_at, last_error, meta from connections"
+            " where site_id=%s and kind = any(%s) order by kind",
+            (site["id"], list(_ADS_CHANNELS)),
+        ).fetchall()
+        # migration 011 creates ads_daily; tolerate a pre-011 database honestly
+        has_ads_daily = conn.execute(
+            "select to_regclass('ads_daily') is not null as ok"
+        ).fetchone()["ok"]
+        coverage = {}
+        if has_ads_daily and conns:
+            coverage = {
+                r["channel"]: r
+                for r in conn.execute(
+                    "select channel, count(distinct date) as days, min(date) as oldest,"
+                    " max(date) as newest, max(pulled_at) as last_pull"
+                    " from ads_daily where site_id=%s group by channel",
+                    (site["id"],),
+                ).fetchall()
+            }
+        conn.rollback()  # read-only
+    if not conns:
+        typer.echo("no ads connections — run: gm ads connect")
+        raise typer.Exit(1)
+    for c in conns:
+        ids = ", ".join(f"{k}={v}" for k, v in sorted(c["meta"].items()))
+        typer.echo(f"{c['kind']}: {c['status']}  {ids}")
+        if c["last_error"]:
+            typer.echo(f"  last_error: {c['last_error']}")
+        cov = coverage.get(c["kind"])
+        if cov:
+            typer.echo(
+                f"  coverage: {cov['days']} day(s)  {cov['oldest']} → {cov['newest']}"
+                f"  (last pull {cov['last_pull']:%Y-%m-%d %H:%M})"
+            )
+        else:
+            typer.echo("  coverage: no daily rows pulled yet")
 
 
 def _check_depth_flag(depth: int | None) -> None:
@@ -742,7 +958,8 @@ competitors_app = typer.Typer(
 )
 app.add_typer(competitors_app, name="competitors")
 
-MONTHLY_MINUTES = 43200  # 30 days — the D2 refresh cadence (COMMON contract)
+# The D2 refresh cadence — sourced from gm.core.schedules, the only copy (D3 COMMON).
+MONTHLY_MINUTES = schedules_mod.MONTHLY
 
 
 def _fmt(value, none: str = "—") -> str:

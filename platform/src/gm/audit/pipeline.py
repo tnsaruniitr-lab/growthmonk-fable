@@ -50,6 +50,13 @@ Phase D0 additions (docs/phase-d0-contracts.md):
     rank_history + serp_snapshots pair; handle_audit_page wires it in
     automatically. Public signatures are otherwise unchanged.
 
+Phase D3 additions (docs/phase-d3-contracts.md, WP-F):
+  - The local-presence family J-05..J-07 is graded by deterministic Python
+    (gm.intel.local_presence) and merged into the pre-decided overrides, so
+    the ids never reach the classifier: client-site page audits carry the real
+    evaluation; competitor_reference/comparison audits get 'na' ("client-site
+    diagnostic"); draft audits get 'na' via DRAFT_NA_CHECK_IDS (no conn/site).
+
 Every prompt string lives in a module-level constant (versioned later).
 """
 
@@ -122,6 +129,12 @@ DRAFT_NA_CHECK_IDS = frozenset({
     "E-09",  # Bing Webmaster Verification — site-level msvalidate.01 meta / BingSiteAuth.xml
     "E-10",  # ClaudeBot/ChatGPT-User/Applebot Allowed — robots.txt rules
     "E-13",  # CCBot / LLM Training Crawler Access — robots.txt rule
+    # Phase D3: the local-presence family (method 'deterministic', so not
+    # caught by the measured-by-rule set) — graded from stored SERP local-pack
+    # sightings, and draft evidence has no conn/site to read them from.
+    "J-05",  # GBP Presence & Completeness
+    "J-06",  # NAP Consistency Across Sightings
+    "J-07",  # Review Signal vs Local Pack
 })
 # NOTE (deliberate, per contract): header/transport checks that are neither
 # measured nor robots/sitemap-based (A-01 HSTS, B-07 compression, B-08
@@ -198,6 +211,65 @@ def draft_na_check_ids(registry: Registry) -> frozenset[str]:
     ids = {cid for cid, c in registry.checks.items() if c.get("method") == "measured"}
     ids |= DRAFT_NA_CHECK_IDS & registry.checks.keys()
     return frozenset(ids)
+
+
+# The local-presence family (phase D3, WP-F): graded by deterministic Python
+# over stored SERP local-pack sightings — NEVER by the classifier.
+LOCAL_PRESENCE_CHECK_IDS = frozenset({"J-05", "J-06", "J-07"})
+LOCAL_PRESENCE_NA_NOTE = "client-site diagnostic"
+
+
+def _is_client_site_url(conn, site_id, url: str) -> bool:
+    """True when the audited URL's host is the site's own domain_norm
+    (subdomain-aware) — i.e. a client-site page audit. False for the foreign
+    pages compare.py audits under the client's site_id (the rows it then tags
+    gate_state='competitor_reference'), and for unknown sites."""
+    from gm.intel.engines.base import normalize_host  # stdlib-only helper module
+
+    row = conn.execute("select domain_norm from sites where id = %s", (site_id,)).fetchone()
+    if row is None:
+        return False
+    target = normalize_host(str(row["domain_norm"] or ""))
+    host = normalize_host(url)
+    return bool(host) and bool(target) and (host == target or host.endswith("." + target))
+
+
+def local_presence_audit_overrides(
+    conn, site_id, registry: Registry, url: str
+) -> dict[str, dict]:
+    """Pre-decided statuses for the local-presence family (J-05..J-07, phase D3).
+
+    These checks are graded by deterministic Python over SERP snapshots
+    (gm.intel.local_presence) and must NEVER reach the classifier — zero LLM
+    spend, byte-identical statuses. Client-site page audits merge the real
+    evaluation; competitor_reference/comparison audits (a foreign host under
+    the client's site_id) get 'na' — the family is a client-site diagnostic.
+    Registries without the family (pre-v1.4.0 pins, test minis) return {} and
+    cost no DB reads. An evaluation crash degrades to 'inconclusive' (still
+    never the classifier), mirroring the evidence-stage shielding.
+    """
+    ids = sorted(LOCAL_PRESENCE_CHECK_IDS & registry.checks.keys())
+    if not ids:
+        return {}
+    try:
+        if not _is_client_site_url(conn, site_id, url):
+            return {
+                cid: {
+                    "status": "na",
+                    "note": LOCAL_PRESENCE_NA_NOTE,
+                    "source": "deterministic",
+                }
+                for cid in ids
+            }
+        from gm.intel.local_presence import local_presence_overrides  # same-wave module
+
+        return local_presence_overrides(conn, site_id, registry)
+    except Exception as exc:  # a crash must not sink the audit or leak to the LLM
+        log.warning("local-presence overrides failed for site %s", site_id, exc_info=True)
+        return {
+            cid: _fallback(f"local-presence evaluation failed: {type(exc).__name__}")
+            for cid in ids
+        }
 
 
 def comparative_na_overrides(registry: Registry, evidence: dict) -> dict[str, dict]:
@@ -642,8 +714,8 @@ def run_page_audit(
 
     try:
         _run_stages(
-            conn, audit_id=audit_id, org_id=org_id, url=url, llm=llm, reg=reg,
-            factory=factory, cost_cap_cents=cost_cap_cents, job_id=job_id,
+            conn, audit_id=audit_id, org_id=org_id, site_id=site_id, url=url, llm=llm,
+            reg=reg, factory=factory, cost_cap_cents=cost_cap_cents, job_id=job_id,
             serp_context=serp_context,
         )
     except Exception as exc:
@@ -660,7 +732,7 @@ def run_page_audit(
     return str(audit_id)
 
 
-def _run_stages(conn, *, audit_id, org_id, url, llm, reg: Registry,
+def _run_stages(conn, *, audit_id, org_id, site_id, url, llm, reg: Registry,
                 factory: Callable, cost_cap_cents: float, job_id: int | None,
                 serp_context: dict | None = None) -> None:
     # Stage 2: acquire (default UA, SSRF-guarded in the real fetcher).
@@ -711,9 +783,13 @@ def _run_stages(conn, *, audit_id, org_id, url, llm, reg: Registry,
 
     # Comparative checks are undecidable without comparison data — mark them
     # 'na' deterministically instead of paying the classifier for 'inconclusive'.
+    # Phase D3: the local-presence family (J-05..07) merges into the same
+    # pre-decided mechanism — real deterministic statuses on client-site
+    # audits, 'na' on competitor_reference/comparison audits.
+    overrides = comparative_na_overrides(reg, evidence)
+    overrides.update(local_presence_audit_overrides(conn, site_id, reg, url))
     status_map, notes, total_cost = classify_checks(
-        llm, reg, evidence, budget, on_cost, audited_url=url,
-        overrides=comparative_na_overrides(reg, evidence),
+        llm, reg, evidence, budget, on_cost, audited_url=url, overrides=overrides,
     )
 
     # Stage 5: deterministic grading + persistence (shared with draft audits).

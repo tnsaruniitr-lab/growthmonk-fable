@@ -11,6 +11,14 @@ Data caveats (verified 2026-07-04):
   manifest count is correct). The id was skipped in the source ruleset, not lost in
   transcription. Do not "fix" the gap: audits/deltas key on check ids, and renumbering
   breaks comparability. New C checks take C-15+.
+- **J-05..J-07 added in Phase D3 (v1.4.0)** — the local-presence check family
+  (docs/phase-d3-contracts.md, WP-F), minted by growthmonk rather than extracted from
+  the aeo-seo-auditor ruleset. They are graded by deterministic Python
+  (`gm/intel/local_presence.py`) over SERP local-pack snapshots and never reach the
+  classifier. `brain/brain-mappings.json` has NO entries for them — lookups tolerate
+  absence (check-id → brain is a plain dict lookup) and reports render the checks'
+  inline `sources` instead. Ids are append-only per the C-13 gap rule below: future
+  criteria changes bump `check_version`, never renumber.
 - **`brain/brain-mappings.json` carries 108 check-id mappings vs 103 registry checks**
   — the mappings were extracted from the v3 auditor, a different vintage than the v1.3
   ruleset, so up to 5 mapped ids have no corresponding check here. Dangling ids are

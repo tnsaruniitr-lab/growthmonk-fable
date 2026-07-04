@@ -6,14 +6,14 @@ from gm.audit.scoring import recompute_scores
 
 def test_real_registry_loads_complete():
     r = load_registry()
-    assert len(r.checks) == 103
-    assert r.version == "v1.3.0"
+    assert len(r.checks) == 106
+    assert r.version == "v1.4.0"
     by_cat: dict[str, int] = {}
     for c in r.checks.values():
         by_cat[c["category"]] = by_cat.get(c["category"], 0) + 1
     assert by_cat == {
         "A": 12, "B": 11, "C": 13, "D": 13, "E": 13,
-        "F": 12, "G": 9, "H": 8, "I": 8, "J": 4,
+        "F": 12, "G": 9, "H": 8, "I": 8, "J": 7,  # J 4->7: D3 local-presence family
     }
 
 

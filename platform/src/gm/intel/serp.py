@@ -245,6 +245,14 @@ def _normalize_items(items: list) -> tuple[list[dict], list[dict]]:
             # serp_snapshots.features carries it — rank_tracker reads AIO citation
             # data from the snapshot without needing the (unstored) raw response.
             _collect_aio_hosts(item, feature.setdefault("cited_domains", []))
+        if item_type == "local_pack":
+            # Phase D3 (WP-F): retain local-pack ENTRIES going forward — each
+            # provider item becomes one {"rank","title","domain","url","phone",
+            # "rating","votes","is_paid"} entry, every field only when the
+            # provider sent it. Old snapshots lack "entries" and the raw
+            # response is unstored (D0 note): extraction downstream counts them
+            # "pack present, entries unobserved", never guesses.
+            feature.setdefault("entries", []).append(_local_pack_entry(item))
     for position, entry in enumerate(organic, start=1):
         if entry["rank"] is None:
             entry["rank"] = position
@@ -578,3 +586,37 @@ def extract_ai_overview(raw_response: object) -> dict:
             present = True
             _collect_aio_hosts(item, cited)
     return {"present": present, "cited_domains": cited}
+
+
+# --- local-pack entry retention (Phase D3, WP-F — append-only) ----------------------------
+
+
+def _local_pack_entry(item: dict) -> dict:
+    """One normalized local-pack entry from a provider local_pack item.
+
+    Contract field list: {"rank","title","domain","url","phone","rating",
+    "votes","is_paid"} — each field present ONLY when the provider sent it, so
+    downstream completeness checks (J-05) measure absence honestly instead of
+    reading planted defaults. rating/votes come from the provider's nested
+    rating object ({"value": ..., "votes_count": ...}).
+    """
+    entry: dict = {}
+    rank = item.get("rank_group")
+    if isinstance(rank, int) and not isinstance(rank, bool):
+        entry["rank"] = rank
+    for key in ("title", "domain", "url", "phone"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            entry[key] = value.strip()
+    rating = item.get("rating")
+    if isinstance(rating, dict):
+        value = rating.get("value")
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            entry["rating"] = float(value)
+        votes = rating.get("votes_count")
+        if isinstance(votes, int | float) and not isinstance(votes, bool):
+            entry["votes"] = int(votes)
+    is_paid = item.get("is_paid")
+    if isinstance(is_paid, bool):
+        entry["is_paid"] = is_paid
+    return entry

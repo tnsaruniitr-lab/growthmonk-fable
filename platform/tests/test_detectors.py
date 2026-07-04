@@ -161,6 +161,7 @@ def test_basis_boundary_27_vs_28_final_days(conn, site):
     assert result["skipped"] == {}
     assert set(result["counts"]) == {
         "striking_distance", "ctr_outlier", "decay", "cannibalization",
+        "local_presence",  # D3: runs on either basis (SERP data, not GSC)
     }
 
 

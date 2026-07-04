@@ -37,6 +37,14 @@ AIO citations, audit median, monthly profile), then the weekly feature-share
 mini-table. Empty-state law: section-absent / no-competitors / has_data=False
 all render honest notes — a competitor without data reads "no data yet",
 never a row of zeros.
+
+Phase D3 (docs/phase-d3-contracts.md, WP-G): the payload gains a "paid_media"
+section via roas_lines (defined here — receipts.py is this wave's sole owner),
+rendered as a 'Paid media' section directly before the BETA citation section.
+Money honesty is binding: spend is never summed across currencies (mixed
+currencies render per-currency lines and no blended total), and a
+0-booked-consult period renders "not computable", never 0 and never infinity.
+No ad account connected renders the honest one-liner, no table, no zeros.
 """
 
 from __future__ import annotations
@@ -424,6 +432,89 @@ def _control_rates(
     }
 
 
+def _roas_period(
+    conn: psycopg.Connection, site_id: Any, start: dt.date, end: dt.date
+) -> dict:
+    """One period's paid-media rollup: per-(channel, currency) lines + blended cost.
+
+    Money honesty (phase D3 COMMON): spend is grouped by currency and NEVER
+    summed across currencies; blended_cost_per_consult is None (with the note
+    saying why) when booked_consults == 0 or the period mixes currencies.
+    """
+    rows = conn.execute(
+        """
+        select channel, currency, sum(spend) as spend, sum(clicks) as clicks,
+               sum(platform_conversions) as platform_conversions
+          from ads_daily
+         where site_id = %s and date >= %s and date < %s
+         group by channel, currency
+         order by channel, currency
+        """,
+        (site_id, start, end),
+    ).fetchall()
+    booked = int(conn.execute(
+        "select count(*) as n from booked_leads"
+        " where site_id = %s and occurred_at >= %s and occurred_at < %s",
+        (site_id, start, end),
+    ).fetchone()["n"])
+    channels = [
+        {
+            "channel": r["channel"],
+            "spend": round(float(r["spend"]), 2),
+            "currency": r["currency"],
+            "clicks": None if r["clicks"] is None else int(r["clicks"]),
+            "platform_conversions": (
+                None if r["platform_conversions"] is None else float(r["platform_conversions"])
+            ),
+        }
+        for r in rows
+    ]
+    currencies = sorted({c["currency"] for c in channels})
+    blended: float | None = None
+    note: str | None = None
+    if channels:
+        if booked == 0:
+            note = "not computable — 0 booked consults this period"
+        elif len(currencies) > 1:
+            note = "not computable — mixed currencies (" + ", ".join(currencies) + ")"
+        else:
+            blended = round(sum(c["spend"] for c in channels) / booked, 2)
+    return {
+        "status": "ok" if channels else "no_spend_recorded",
+        "channels": channels,
+        "booked_consults": booked,
+        "blended_cost_per_consult": blended,
+        "note": note,
+    }
+
+
+def roas_lines(conn: psycopg.Connection, site_id: Any, period: str) -> dict:
+    """Paid-media receipt section (phase D3, WP-G): read-only ROAS lines.
+
+    status: 'awaiting_ad_account' (no google_ads/meta_ads connection exists —
+    the honest BLOCKED-ON-CLIENT state), 'no_spend_recorded' (connected but no
+    ads_daily rows in the period), or 'ok'. prior carries the same shape for
+    the prior period, or None when the prior period recorded nothing — the
+    renderer shows a trend arrow only when both periods computed.
+    """
+    start, end = period_bounds(period)
+    connected = conn.execute(
+        "select 1 from connections"
+        " where site_id = %s and kind in ('google_ads','meta_ads') limit 1",
+        (site_id,),
+    ).fetchone() is not None
+    current = _roas_period(conn, site_id, start, end)
+    if not connected:
+        current["status"] = "awaiting_ad_account"
+        current["note"] = "awaiting ad account connection"
+        current["prior"] = None
+        return current
+    p_start, p_end = period_bounds(prior_period(period))
+    prior = _roas_period(conn, site_id, p_start, p_end)
+    current["prior"] = prior if prior["status"] == "ok" else None
+    return current
+
+
 def assemble_site_receipt(conn: psycopg.Connection, *, site_id: Any, period: str) -> str:
     """Assemble the monthly rollup payload and upsert the site_deltas row.
 
@@ -623,6 +714,7 @@ def assemble_site_receipt(conn: psycopg.Connection, *, site_id: Any, period: str
         "content": content,
         "rank_tracking": rank_tracking,
         "competitive_position": competitive,
+        "paid_media": roas_lines(conn, site_id, period),
         "citations": {
             "prompts": prompts,
             "controls": {"sites": control_sites, "mean_abs_drift": mean_abs_drift},
@@ -1100,6 +1192,103 @@ def _competitive_html(payload: dict) -> list[str]:
     return out
 
 
+def _blended_currency(channels: list) -> str | None:
+    """The single currency across channel lines, or None when mixed/absent."""
+    currencies = {
+        c.get("currency") for c in channels if isinstance(c, dict) and c.get("currency")
+    }
+    return currencies.pop() if len(currencies) == 1 else None
+
+
+def _blended_line_html(pm: dict) -> str:
+    """The blended cost-per-consult line: value + prior-period trend arrow, or
+    the honest 'not computable' note — never 0, never infinity."""
+    blended = report._num(pm.get("blended_cost_per_consult"))
+    if blended is None:
+        note = pm.get("note") or "not computable"
+        return f'<p class="honest">Blended cost per booked consult: {_esc(note)}</p>'
+    channels = pm.get("channels") if isinstance(pm.get("channels"), list) else []
+    currency = _blended_currency(channels)
+    booked = int(report._num(pm.get("booked_consults")) or 0)
+    txt = (
+        f"Blended cost per booked consult: {_esc(f'{blended:.2f}')} {_esc(currency)}"
+        f" ({_esc(booked)} booked consult{'' if booked == 1 else 's'})"
+    )
+    # Trend arrow only when BOTH periods computed (and in the same currency —
+    # cross-currency cost comparisons are not a thing money honesty allows).
+    prior = report._dict_or_empty(pm.get("prior"))
+    prior_blended = report._num(prior.get("blended_cost_per_consult"))
+    prior_channels = prior.get("channels") if isinstance(prior.get("channels"), list) else []
+    if prior_blended is not None and _blended_currency(prior_channels) == currency:
+        if blended < prior_blended:  # cheaper consult = improvement
+            txt += (
+                f' <span class="delta-up">&#9660;</span> from {_esc(f"{prior_blended:.2f}")}'
+            )
+        elif blended > prior_blended:
+            txt += (
+                f' <span class="delta-down">&#9650;</span> from {_esc(f"{prior_blended:.2f}")}'
+            )
+        else:
+            txt += f" (unchanged from {_esc(f'{prior_blended:.2f}')})"
+    return f"<p>{txt}</p>"
+
+
+def _paid_media_html(payload: dict) -> list[str]:
+    """The 'Paid media' section (phase D3): per-channel spend + blended cost per
+    booked consult. Exact empty-state strings per the contract — awaiting an ad
+    account renders one honest line, no table, no zeros."""
+    out = [
+        "<section><h2>Paid media</h2>",
+        '<p class="sub">Ad spend by channel (read-only account pulls) and blended '
+        "cost per booked consult.</p>",
+    ]
+    pm = payload.get("paid_media")
+    if not isinstance(pm, dict):
+        out.append('<p class="honest">Paid-media tracking is not available yet.</p>')
+        out.append("</section>")
+        return out
+    status = pm.get("status")
+    if status == "awaiting_ad_account":
+        out.append(
+            '<p class="honest">Blended cost per booked consult: '
+            "awaiting ad account connection</p>"
+        )
+        out.append("</section>")
+        return out
+    if status == "no_spend_recorded":
+        out.append('<p class="honest">No paid-media spend recorded this period.</p>')
+        out.append("</section>")
+        return out
+    channels = pm.get("channels") if isinstance(pm.get("channels"), list) else []
+    out.append(
+        '<table class="delta"><thead><tr><th>Channel</th><th>Spend</th>'
+        "<th>Clicks</th><th>Platform conversions</th></tr></thead><tbody>"
+    )
+    for ch in channels:
+        if not isinstance(ch, dict):
+            continue
+        spend = report._num(ch.get("spend"))
+        spend_cell = (
+            "&mdash;" if spend is None
+            else f"{_esc(f'{spend:.2f}')} {_esc(ch.get('currency'))}"
+        )
+        conv = report._num(ch.get("platform_conversions"))
+        conv_cell = "&mdash;" if conv is None else _esc(f"{conv:g}")
+        out.append(
+            f"<tr><td>{_esc(ch.get('channel'))}</td><td>{spend_cell}</td>"
+            f"<td>{_count_cell(ch.get('clicks'))}</td><td>{conv_cell}</td></tr>"
+        )
+    out.append("</tbody></table>")
+    out.append(_blended_line_html(pm))
+    out.append(
+        '<p class="honest">Spend lines are per channel and currency — mixed-currency '
+        "periods are never summed into one number. Platform conversions are the ad "
+        "platform&#39;s own attribution, not booked consults.</p>"
+    )
+    out.append("</section>")
+    return out
+
+
 def _ci_txt(ci: Any) -> str:
     if not isinstance(ci, (list, tuple)) or len(ci) != 2:
         return ""
@@ -1238,6 +1427,7 @@ def render_receipt_html(
     out.extend(_gsc_html(payload))
     out.extend(_rank_tracking_html(payload))  # before the BETA citation section
     out.extend(_competitive_html(payload))  # phase D2: directly after 'Google visibility'
+    out.extend(_paid_media_html(payload))  # phase D3: directly before the BETA citations
     out.extend(_citations_html(payload))
     out.extend(_ops_html(payload))
     out.append(

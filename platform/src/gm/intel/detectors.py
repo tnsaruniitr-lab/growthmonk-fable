@@ -435,6 +435,21 @@ def cannibalization(
 # --- orchestration --------------------------------------------------------------------
 
 
+def _detect_local_presence_fn():
+    """Lazy accessor for gm.intel.local_presence.detect_local_presence (Phase D3, WP-F).
+
+    Resolved at call time (the D0 _rank_movement_fn pattern in receipts.py):
+    tests monkeypatch it, and a partially deployed wave never breaks the queue
+    computation — an absent module is reported as an honest skip, never a fake
+    zero count.
+    """
+    try:
+        from gm.intel.local_presence import detect_local_presence
+    except ImportError:
+        return None
+    return detect_local_presence
+
+
 def compute_queue(conn: psycopg.Connection, site_id: str) -> dict:
     """Run every applicable detector for the site; returns
     {"basis": ..., "counts": {kind: n, ...}, "skipped": {kind: reason, ...}}."""
@@ -462,6 +477,15 @@ def compute_queue(conn: psycopg.Connection, site_id: str) -> dict:
         # Honest gap: these need day-level history that provisional mode doesn't have.
         skipped["decay"] = "insufficient history"
         skipped["cannibalization"] = "insufficient history"
+
+    # Phase D3 (WP-F): local-presence detector over SERP local-pack sightings —
+    # not GSC data, so it runs on either basis. Lazy import per the D0
+    # _rank_movement_fn pattern: an absent module is an honest skip.
+    detect_local = _detect_local_presence_fn()
+    if detect_local is not None:
+        counts["local_presence"] = detect_local(conn, site_id)
+    else:
+        skipped["local_presence"] = "module unavailable"
     return {"basis": basis, "counts": counts, "skipped": skipped}
 
 

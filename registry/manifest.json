@@ -1,6 +1,6 @@
 {
-  "version": "v1.3.0",
-  "generated_from": "aeo-seo-auditor-fable ruleset v1.3 (2026-04-13) @ e4d7fd7",
+  "version": "v1.4.0",
+  "generated_from": "aeo-seo-auditor-fable ruleset v1.3 (2026-04-13) @ e4d7fd7 + growthmonk Phase D3 local-presence family (J-05..J-07)",
   "extracted_at": "2026-07-03",
   "categories": {
     "A": 12,
@@ -12,7 +12,7 @@
     "G": 9,
     "H": 8,
     "I": 8,
-    "J": 4
+    "J": 7
   },
-  "checks_total": 103
+  "checks_total": 106
 }
