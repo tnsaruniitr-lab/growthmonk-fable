@@ -19,15 +19,17 @@ never invented facts, never binary before/after claims.
   12,764-entry citations brain — DATA, not code), `ops/` (9 migrations, runbooks, evidence),
   `docs/` (specs/contracts).
 - Prod: Railway project `growthmonk-fable` (id 0365f2fa-be15-4d34-9045-5a102a3e6de2):
-  Postgres + `worker` (all 15 job types) + `api` (share pages, admin, WhatsApp webhook) at
+  Postgres + `worker` (all 18 job types) + `api` (share pages, admin, WhatsApp webhook) at
   `api-production-e922.up.railway.app`. Push to `main` auto-deploys both services. CI runs the
   full suite against Postgres 16 on every push — currently **685 tests, zero skips**.
 - Local dev: `python3.12 -m venv .venv && .venv/bin/pip install -e "./platform[dev]"`. Local
-  pg16 recipe (no Docker on this machine): `initdb --no-locale -D /tmp/gm_pg16 -U postgres`,
+  pg16 recipe (no Docker on this machine): `initdb --no-locale -E UTF8 -D /tmp/gm_pg16 -U postgres`
+  (the `-E UTF8` matters: SQL_ASCII makes psycopg return bytes and the migration tracker re-runs 001),
   start on port 54329 with `-c unix_socket_directories=/tmp -c listen_addresses=localhost`,
   `DATABASE_URL=postgresql://postgres@localhost:54329/growthmonk`. Full suite: `ruff check
   platform && pytest platform/tests -q`.
-- Operator surface: `gm --help` (~20 commands). The whole loop is drivable from the CLI.
+- Operator surface: `gm --help` (28 top-level entries, 37 leaf commands). The whole loop
+  is drivable from the CLI.
 
 ## 1. DONE — with the live proof for each
 
@@ -39,7 +41,7 @@ never invented facts, never binary before/after claims.
 | Client-forwardable report design (grade stamp, fix-queue-first, "why this matters" citations) | the live share page; artifact `autopsy-report-live` |
 | Comparative audits (our checks on competitor pages, `competitor_reference`-tagged) | live: 2 precise gaps vs ahrefs/partnerstack for "ai visibility audit" |
 | Brief generator (deterministic assembly + advisory synthesis) | `ops/briefs/2026-07-03-growthmonk.ai-ai-visibility-audit.md` |
-| Fix-closer + **convergence fix proven**: real author entity + human signals enforced | engine **86→92 "Publish-ready"** vs the 13 pre-fix runs' 42–51 plateau; 4,892-word draft; our scorecard C+ 71.8; root-cause in `docs/convergence-diagnosis.md` |
+| Fix-closer + **convergence fix proven**: real author entity + human signals enforced | engine **86→92 "Publish-ready"** vs the 13 pre-fix runs' 42–51 plateau; 4,892-word draft; our scorecard C+ 71.8; root-cause in `docs/convergence-diagnosis.md`. Caveat: the diagnosis projects ~82–86 from input fixes alone — sustained ≥90 needs the blog-buster `faqVisibleCount` scoping fix (§2 known debt); treat the single 92 as within judge variance until re-proven |
 | Draft audits (pre-publish scorecard, honest N/A sets) + comparative-N/A token optimization | test_draft_audit.py; wired into fix-closer |
 | GSC: vault, service-account client, two-phase ingest, 4 detectors, operator queue | full DB test coverage; **never run against real GSC data** (see §3 operator items) |
 | WordPress publish + verify (preflight, IndexNow, BEV re-probe, GSC inspect) | code-complete + tested with fixtures; **never run against a real WP site** |
@@ -51,8 +53,9 @@ never invented facts, never binary before/after claims.
 ## 2. REMAINING — ordered backlog for the next implementer
 
 Rule zero: **respect the gates.** `docs/03-roadmap.md` §kill-criteria and `docs/01-product.md`
-§do-not-build override any instinct to build ahead. When a wave adds a migration, take the next
-free number (two agents collided on 007/008 already — check `ops/migrations/` first).
+§do-not-build override any instinct to build ahead. When a wave adds a migration, take the
+next free number — check `ops/migrations/` first (an 007/008 near-collision during the D
+waves was resolved; the tree is clean 001–009, next free is 010+whatever has landed since).
 
 ### D2 — Competitor intelligence pack (recommended next; ~1 wave)
 The DataForSEO integration covers the wedge loop but NOT the "competitor overview" layer.
@@ -88,6 +91,10 @@ citation variance calibration study → de-BETA the receipt citation section · 
 features (vector column exists) · customer-facing queue/receipts UI · nightly eval automation.
 
 ### Known debt (fix opportunistically, don't ship features on top of it)
+- Blog-buster `faqVisibleCount` scoping bug (validators.ts, counts page-wide FAQ instead of
+  section-scoped): permanent −14 on fix-closer verification; `docs/convergence-diagnosis.md`
+  §3.2/§5 calls it the only upstream code fix worth making. Until it lands, do not raise the
+  fix-closer gate above 85.
 - Content engine (serp-analyzer) runs on the operator machine via `CONTENT_ENGINE_URL`;
   Railway deploy deliberately deferred (vendoring decision) — document in every fix-closer run.
 - Railway PG connects as owner → RLS policies exist but aren't FORCE-enforced (fine solo;

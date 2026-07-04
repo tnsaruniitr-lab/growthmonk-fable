@@ -74,29 +74,7 @@ from gm.audit.inspectors.sitemap import inspect_sitemap
 from gm.audit.registry import Registry, load_registry
 from gm.audit.safety import UnsafeURL
 from gm.infra.costs import record_cost
-
-try:  # gm.infra.llm is built in the same wave; only two names are needed here.
-    from gm.infra.llm import CallBudget, CostCapExceeded
-except ImportError:  # pragma: no cover — contract-identical stand-ins until it lands
-    class CostCapExceeded(Exception):  # type: ignore[no-redef]
-        """Raised when a call would push shared audit spend past its cap."""
-
-        retryable = False
-
-    class CallBudget:  # type: ignore[no-redef]
-        """Shared cost budget across one audit job (contract shape)."""
-
-        def __init__(self, cap_cents: float):
-            self.cap_cents = float(cap_cents)
-            self.spent_cents = 0.0
-
-        def charge(self, cents: float) -> None:
-            if self.spent_cents + cents > self.cap_cents:
-                raise CostCapExceeded(
-                    f"cost cap {self.cap_cents}c exceeded (spent {self.spent_cents}c)"
-                )
-            self.spent_cents += cents
-
+from gm.infra.llm import CallBudget, CostCapExceeded
 
 log = logging.getLogger(__name__)
 
