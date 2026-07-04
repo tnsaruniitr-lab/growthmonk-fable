@@ -22,8 +22,17 @@ def raw_store_dir() -> Path:
 
 
 def repo_root() -> Path:
-    # .../growthmonk-fable/platform/src/gm/config.py -> parents[3] = repo root
-    return Path(__file__).resolve().parents[3]
+    # Editable installs resolve __file__ inside the repo (parents[3] = repo root).
+    # A pip-installed package resolves into site-packages, where parents[3] points
+    # nowhere useful — fall back to the container convention (WORKDIR /app carries
+    # COPY'd ops/ + registry/). GM_REPO_ROOT overrides both.
+    env_root = os.environ.get("GM_REPO_ROOT")
+    if env_root:
+        return Path(env_root)
+    dev = Path(__file__).resolve().parents[3]
+    if (dev / "ops" / "migrations").is_dir():
+        return dev
+    return Path.cwd()
 
 
 def migrations_dir() -> Path:

@@ -36,3 +36,23 @@ def test_scoring_runs_against_real_registry():
     assert scores["page_citation_readiness"] == 100.0
     assert scores["computed_by"] == "runtime-deterministic"
     assert scores["inconclusive"] is False
+
+
+def test_registry_root_env_override_and_cwd_fallback(tmp_path, monkeypatch):
+    # GM_REGISTRY_DIR wins over everything (the prod-container escape hatch —
+    # a pip-installed package resolves __file__ into site-packages, where the
+    # parents[4] walk lands on nonsense like /usr/local/lib/registry).
+    from gm.audit import citations as citations_mod
+    from gm.audit import registry as registry_mod
+
+    real_root = registry_mod._default_root()
+    override = tmp_path / "reg"
+    override.mkdir()
+    monkeypatch.setenv("GM_REGISTRY_DIR", str(override))
+    assert registry_mod._default_root() == override
+    assert citations_mod._default_root() == override / "brain"
+
+    # Unset -> the editable-install path still resolves to the real repo copy.
+    monkeypatch.delenv("GM_REGISTRY_DIR")
+    assert registry_mod._default_root() == real_root
+    assert (real_root / "manifest.json").is_file()

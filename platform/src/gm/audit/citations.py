@@ -28,6 +28,7 @@ finding. Stdlib only; no DB, no network.
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 from dataclasses import dataclass, field
@@ -164,8 +165,16 @@ class Brain:
 
 
 def _default_root() -> Path:
-    # platform/src/gm/audit/citations.py -> repo root is parents[4]; registry/brain under it.
-    return Path(__file__).resolve().parents[4] / "registry" / "brain"
+    # Same resolution discipline as gm.audit.registry._default_root: editable
+    # installs find the repo via __file__; pip-installed packages fall back to
+    # the container convention (WORKDIR /app). GM_REGISTRY_DIR wins everywhere.
+    env_root = os.environ.get("GM_REGISTRY_DIR")
+    if env_root:
+        return Path(env_root) / "brain"
+    dev = Path(__file__).resolve().parents[4] / "registry" / "brain"
+    if dev.is_dir():
+        return dev
+    return Path.cwd() / "registry" / "brain"
 
 
 def _load_array(root: Path, filename: str) -> dict[int, dict]:

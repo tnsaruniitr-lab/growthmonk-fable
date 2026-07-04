@@ -14,6 +14,7 @@ Stdlib only; no DB, no network.
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -68,8 +69,17 @@ class Registry:
 
 
 def _default_root() -> Path:
-    # platform/src/gm/audit/registry.py -> repo root is parents[4]; registry/ under it.
-    return Path(__file__).resolve().parents[4] / "registry"
+    # Editable installs resolve __file__ inside the repo (parents[4] = repo root);
+    # a pip-installed package resolves into site-packages, where that walk lands
+    # on nonsense like /usr/local/lib/registry. Fall back to the container
+    # convention (WORKDIR /app carries COPY'd registry/). GM_REGISTRY_DIR wins.
+    env_root = os.environ.get("GM_REGISTRY_DIR")
+    if env_root:
+        return Path(env_root)
+    dev = Path(__file__).resolve().parents[4] / "registry"
+    if dev.is_dir():
+        return dev
+    return Path.cwd() / "registry"
 
 
 def _require(cond: bool, msg: str) -> None:
