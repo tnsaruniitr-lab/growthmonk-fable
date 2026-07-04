@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import re
 import sys
 import types
 import uuid
@@ -497,16 +498,24 @@ def test_wa_connect_creates_conditional_schedule_the_moment_connection_exists(co
 # --- CLI: gm ads connect / pull / status --------------------------------------------------------
 
 
+def _plain(output: str) -> str:
+    # Typer/rich wraps errors in an ANSI-styled panel whose line breaks depend on
+    # the terminal env (CI differs from local) — strip escapes/borders and collapse
+    # whitespace so substring assertions survive any wrapping.
+    text = re.sub(r"\x1b\[[0-9;]*m", "", output)
+    return " ".join(text.replace("│", " ").split())
+
+
 def test_ads_connect_validates_channel_and_ids():
     result = runner.invoke(cli.app, ["ads", "connect", "x.ae", "--channel", "tiktok_ads"])
     assert result.exit_code != 0
-    assert "google_ads, meta_ads" in result.output
+    assert "google_ads, meta_ads" in _plain(result.output)
     result = runner.invoke(cli.app, ["ads", "connect", "x.ae", "--channel", "google_ads"])
     assert result.exit_code != 0
-    assert "--customer-id and --login-customer-id" in result.output
+    assert "--customer-id and --login-customer-id" in _plain(result.output)
     result = runner.invoke(cli.app, ["ads", "connect", "x.ae", "--channel", "meta_ads"])
     assert result.exit_code != 0
-    assert "--act-id" in result.output
+    assert "--act-id" in _plain(result.output)
 
 
 @requires_db
