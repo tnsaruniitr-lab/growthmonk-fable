@@ -21,8 +21,11 @@ if [ "$size" -lt 10240 ]; then
 fi
 
 # Integrity: gzip must decompress end-to-end and contain a schema_migrations row.
+# grep -c consumes the whole stream (grep -q would exit early and feed gzip a
+# SIGPIPE, which pipefail then reports as failure on a perfectly good dump).
 gzip -t "$out"
-if ! gzip -dc "$out" | grep -q "schema_migrations"; then
+matches=$(gzip -dc "$out" | grep -c "schema_migrations" || true)
+if [ "${matches:-0}" -eq 0 ]; then
   echo "backup: FAILED — dump does not contain schema_migrations" >&2
   exit 1
 fi
