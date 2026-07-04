@@ -41,12 +41,16 @@ import psycopg
 from gm.infra import jobs
 from gm.infra.costs import record_cost
 from gm.intel.detectors import _upsert_item
+from gm.intel.engines.base import normalize_host
 from gm.intel.serp import SerpError, query_norm
 
 log = logging.getLogger(__name__)
 
 BASE_URL = "https://api.dataforseo.com"
 RANKED_KEYWORDS_PATH = "/v3/dataforseo_labs/google/ranked_keywords/live"
+DOMAIN_RANK_OVERVIEW_PATH = "/v3/dataforseo_labs/google/domain_rank_overview/live"
+BULK_TRAFFIC_ESTIMATION_PATH = "/v3/dataforseo_labs/google/bulk_traffic_estimation/live"
+COMPETITORS_DOMAIN_PATH = "/v3/dataforseo_labs/google/competitors_domain/live"
 
 PROVIDER = "dataforseo"
 DEFAULT_LOCATION_CODE = 2784  # United Arab Emirates
@@ -171,6 +175,18 @@ def _float_or_none(value: object) -> float | None:
     return float(value) if isinstance(value, int | float) else None
 
 
+def _result_items(task: dict) -> list:
+    """items from tasks[0].result[0]; provider returns null result on empty targets."""
+    result_list = task.get("result")
+    entry = (
+        result_list[0]
+        if isinstance(result_list, list) and result_list and isinstance(result_list[0], dict)
+        else {}
+    )
+    items = entry.get("items")
+    return items if isinstance(items, list) else []
+
+
 # --- client -----------------------------------------------------------------------------
 
 
@@ -254,6 +270,158 @@ class LabsClient:
                     "volume": _int_or_none(info.get("search_volume")),
                     "cpc": _float_or_none(info.get("cpc")),
                     "url": str(serp_item.get("url") or ""),
+                }
+            )
+        cost = _cost_cents(data, task)
+        if not cost:
+            cost = TASK_COST_CENTS + ROW_COST_CENTS * len(items)
+        self.last_cost_cents = cost
+        return out
+
+    # --- Phase D2 appends (competitor intelligence pack) ---------------------------------
+
+    def domain_rank_overview(
+        self,
+        domain: str,
+        *,
+        location_code: int = DEFAULT_LOCATION_CODE,
+        language: str = "en",
+    ) -> dict | None:
+        """Sitewide organic footprint for `domain` (competitor profiles).
+
+        Returns {"total_keywords", "top10_keywords", "pos_1", "movers", "raw"}:
+        total_keywords = organic.count, top10_keywords = pos_1 + pos_2_3 + pos_4_10
+        (None when the provider sent none of the buckets), movers =
+        {"new","up","down","lost"} from is_new/is_up/is_down/is_lost, raw = the
+        untouched metrics dict. None when the provider returns no items — the
+        caller stores a NULLs row (honest absence, no invention).
+        """
+        payload = [
+            {"target": domain, "location_code": location_code, "language_code": language}
+        ]
+        data = _post_json(
+            self._client,
+            BASE_URL + DOMAIN_RANK_OVERVIEW_PATH,
+            headers=self._headers,
+            payload=payload,
+        )
+        task = _unwrap_task(data)
+        items = _result_items(task)
+        cost = _cost_cents(data, task)
+        if not cost:
+            cost = TASK_COST_CENTS + ROW_COST_CENTS * len(items)
+        self.last_cost_cents = cost
+        item = next((i for i in items if isinstance(i, dict)), None)
+        if item is None:
+            return None
+        metrics = item.get("metrics") or {}
+        organic = metrics.get("organic") or {}
+        buckets = [_int_or_none(organic.get(k)) for k in ("pos_1", "pos_2_3", "pos_4_10")]
+        top10 = (
+            sum(b for b in buckets if b is not None)
+            if any(b is not None for b in buckets)
+            else None
+        )
+        return {
+            "total_keywords": _int_or_none(organic.get("count")),
+            "top10_keywords": top10,
+            "pos_1": buckets[0],
+            "movers": {
+                "new": _int_or_none(organic.get("is_new")),
+                "up": _int_or_none(organic.get("is_up")),
+                "down": _int_or_none(organic.get("is_down")),
+                "lost": _int_or_none(organic.get("is_lost")),
+            },
+            "raw": metrics,
+        }
+
+    def bulk_traffic_estimation(
+        self,
+        domains: list[str],
+        *,
+        location_code: int = DEFAULT_LOCATION_CODE,
+        language: str = "en",
+    ) -> dict:
+        """ONE call for all `domains`: {host: {"est_traffic", "total_keywords"}}.
+
+        Keys are normalized hosts; targets the provider returned nothing for are
+        absent from the mapping (callers treat absence honestly, never as zero).
+        """
+        payload = [
+            {"targets": list(domains), "location_code": location_code, "language_code": language}
+        ]
+        data = _post_json(
+            self._client,
+            BASE_URL + BULK_TRAFFIC_ESTIMATION_PATH,
+            headers=self._headers,
+            payload=payload,
+        )
+        task = _unwrap_task(data)
+        items = _result_items(task)
+        out: dict[str, dict] = {}
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            host = normalize_host(str(item.get("target") or "").strip())
+            if not host:
+                continue
+            organic = (item.get("metrics") or {}).get("organic") or {}
+            out[host] = {
+                "est_traffic": _float_or_none(organic.get("etv")),
+                "total_keywords": _int_or_none(organic.get("count")),
+            }
+        cost = _cost_cents(data, task)
+        if not cost:
+            cost = TASK_COST_CENTS + ROW_COST_CENTS * len(items)
+        self.last_cost_cents = cost
+        return out
+
+    def competitors_domain(
+        self,
+        domain: str,
+        *,
+        location_code: int = DEFAULT_LOCATION_CODE,
+        language: str = "en",
+        limit: int = 30,
+    ) -> list[dict]:
+        """Intersection-ranked competitor discovery for `domain`.
+
+        [{"domain", "intersections", "avg_position", "their_keywords", "their_etv"}],
+        hosts normalized. Items without a host or an integer `intersections` are
+        dropped — no overlap evidence, nothing to rank a candidate by.
+        """
+        payload = [
+            {
+                "target": domain,
+                "location_code": location_code,
+                "language_code": language,
+                "limit": limit,
+            }
+        ]
+        data = _post_json(
+            self._client,
+            BASE_URL + COMPETITORS_DOMAIN_PATH,
+            headers=self._headers,
+            payload=payload,
+        )
+        task = _unwrap_task(data)
+        items = _result_items(task)
+        out: list[dict] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            host = normalize_host(str(item.get("domain") or "").strip())
+            intersections = _int_or_none(item.get("intersections"))
+            if not host or intersections is None:
+                continue
+            organic = (item.get("full_domain_metrics") or {}).get("organic") or {}
+            out.append(
+                {
+                    "domain": host,
+                    "intersections": intersections,
+                    "avg_position": _float_or_none(item.get("avg_position")),
+                    "their_keywords": _int_or_none(organic.get("count")),
+                    "their_etv": _float_or_none(organic.get("etv")),
                 }
             )
         cost = _cost_cents(data, task)

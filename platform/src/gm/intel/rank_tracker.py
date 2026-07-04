@@ -12,6 +12,12 @@ retains the ai_overview parse there ({"type": "ai_overview", "cited_domains":
 
 Honest absence: a query the site does not rank for within the tracked depth is
 recorded with rank NULL — never 0.
+
+Phase D2 (WP-D): each tracked query carries its own serp_depth (10 default,
+100 opt-in via `gm track add --depth` / `gm track set-depth`); track_site
+passes it to serp.get_snapshot so the snapshot cache honors it (row.depth >=
+requested). find_rank records a #47 honestly at depth 100; top_domains stays a
+top-10 fingerprint either way.
 """
 
 from __future__ import annotations
@@ -25,31 +31,63 @@ from gm.intel.engines.base import normalize_host
 
 log = logging.getLogger(__name__)
 
-TOP_N = 10  # top_domains fingerprint depth (ranks 1..10)
+TOP_N = 10  # top_domains fingerprint depth (ranks 1..10) — fixed even at serp_depth=100
+SERP_DEPTHS = (10, 100)  # migration 010 check constraint; 100 is opt-in (~2x provider cost)
 
 
 # --- tracked queries --------------------------------------------------------------------
 
 
-def add_tracked_query(conn, org_id, site_id, query, target_page=None) -> str:
+def _check_depth(depth: int) -> None:
+    if isinstance(depth, bool) or depth not in SERP_DEPTHS:
+        raise ValueError(f"serp depth must be one of {SERP_DEPTHS}, got {depth!r}")
+
+
+def add_tracked_query(conn, org_id, site_id, query, target_page=None, serp_depth=None) -> str:
     """Register (or re-activate) a tracked query for a site; returns the row id.
 
     The query is normalized via serp.query_norm so it shares the snapshot cache
     key. Re-adding an existing query re-activates it; a None target_page never
-    clobbers a previously set one.
+    clobbers a previously set one. serp_depth (Phase D2, 10 or 100) defaults to
+    10 on insert; None on re-add keeps the existing depth — top-100 tracking is
+    opt-in per explicit flag only.
     """
+    if serp_depth is not None:
+        _check_depth(serp_depth)
     row = conn.execute(
         """
-        insert into tracked_queries (org_id, site_id, query_norm, target_page)
-        values (%s, %s, %s, %s)
+        insert into tracked_queries (org_id, site_id, query_norm, target_page, serp_depth)
+        values (%(org_id)s, %(site_id)s, %(query_norm)s, %(target_page)s,
+                coalesce(%(serp_depth)s::int, 10))
         on conflict (site_id, query_norm) do update
            set active = true,
-               target_page = coalesce(excluded.target_page, tracked_queries.target_page)
+               target_page = coalesce(excluded.target_page, tracked_queries.target_page),
+               serp_depth = coalesce(%(serp_depth)s::int, tracked_queries.serp_depth)
         returning id
         """,
-        (org_id, site_id, serp.query_norm(query), target_page),
+        {
+            "org_id": org_id,
+            "site_id": site_id,
+            "query_norm": serp.query_norm(query),
+            "target_page": target_page,
+            "serp_depth": serp_depth,
+        },
     ).fetchone()
     return str(row["id"])
+
+
+def set_query_depth(conn, site_id, query, depth: int) -> bool:
+    """Set serp_depth (10 or 100) for an already-tracked query.
+
+    Returns False when the query is not tracked for this site — callers report
+    honestly instead of silently registering a new query.
+    """
+    _check_depth(depth)
+    cur = conn.execute(
+        "update tracked_queries set serp_depth = %s where site_id = %s and query_norm = %s",
+        (depth, site_id, serp.query_norm(query)),
+    )
+    return cur.rowcount > 0
 
 
 # --- pure helpers (no DB) ---------------------------------------------------------------
@@ -126,7 +164,7 @@ def track_site(conn, *, org_id, site_id, serp_client=None, max_age_days: int = 6
     domain_norm = site["domain_norm"]
 
     queries = conn.execute(
-        "select query_norm from tracked_queries where site_id = %s and active"
+        "select query_norm, serp_depth from tracked_queries where site_id = %s and active"
         " order by query_norm",
         (site_id,),
     ).fetchall()
@@ -137,8 +175,11 @@ def track_site(conn, *, org_id, site_id, serp_client=None, max_age_days: int = 6
     for row in queries:
         q = row["query_norm"]
         try:
+            # Phase D2: per-query serp_depth (10 default, 100 opt-in) rides along
+            # to the snapshot layer; the cache serves a row iff row.depth >= this.
             snap = serp.get_snapshot(
-                conn, site_id, q, max_age_days=max_age_days, client=serp_client
+                conn, site_id, q, max_age_days=max_age_days, client=serp_client,
+                depth=row["serp_depth"],
             )
         except serp.SerpError as exc:
             log.warning("track_site: snapshot failed site=%s query=%r: %s", site_id, q, exc)

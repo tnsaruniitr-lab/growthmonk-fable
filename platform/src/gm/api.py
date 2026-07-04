@@ -21,6 +21,7 @@ DB access: a fresh gm.db.connect() per request — no pooling yet (solo scale).
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import os
@@ -274,6 +275,36 @@ def admin_site_leads(site_id: str, days: int = 28):
         ).fetchall()
         conn.rollback()
     return {"leads": leads, "weekly": weekly}
+
+
+@app.get("/admin/sites/{site_id}/competitors", dependencies=_admin)
+def admin_site_competitors(site_id: str):
+    """Operator competitor view: current-month competitive position (Phase D2).
+
+    Pure assembly over rows already bought (gm.intel.feature_share) — zero
+    provider spend. Same guard shape as /admin/sites/{id}/leads: admin header
+    dependency, 404 on a malformed site_id; an unknown-but-well-formed site_id
+    is also a 404 (competitive_position has no site row to describe).
+    """
+    try:
+        sid = uuid.UUID(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404) from exc
+    # Lazy imports keep API startup light (CLI discipline for optional sections).
+    from gm.delivery.receipts import period_bounds
+    from gm.intel.feature_share import competitive_position
+
+    start, end = period_bounds(dt.date.today().strftime("%Y-%m"))
+    with _connect() as conn:
+        try:
+            position = competitive_position(
+                conn, sid, since=start, until=end - dt.timedelta(days=1)
+            )
+        except ValueError as exc:  # unknown site
+            conn.rollback()
+            raise HTTPException(status_code=404) from exc
+        conn.rollback()
+    return position
 
 
 # ---------------------------------------------------------------------------

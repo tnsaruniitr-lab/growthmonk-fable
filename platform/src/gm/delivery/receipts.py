@@ -27,6 +27,16 @@ imported and tolerated when absent (the module is built concurrently), and
 rendered as a 'Google visibility' section (rank arrows, AI Overview citation
 badges, competitor top-10 changes) before the BETA citation section, with an
 honest empty state when no queries are tracked.
+
+Phase D2 (docs/phase-d2-contracts.md, WP-C): the payload gains a
+"competitive_position" section via gm.intel.feature_share.competitive_position
+(same lazy-accessor discipline, window = rank_tracking's since/until),
+rendered as a 'Competitive position' section directly after 'Google
+visibility': you-row first, one row per configured competitor (rank counts,
+AIO citations, audit median, monthly profile), then the weekly feature-share
+mini-table. Empty-state law: section-absent / no-competitors / has_data=False
+all render honest notes — a competitor without data reads "no data yet",
+never a row of zeros.
 """
 
 from __future__ import annotations
@@ -138,6 +148,21 @@ def _rank_movement_fn():
     except ImportError:
         return None
     return rank_movement
+
+
+def _competitive_position_fn():
+    """Lazy accessor for gm.intel.feature_share.competitive_position (phase D2).
+
+    Same discipline as _rank_movement_fn: resolved at assemble time so tests
+    can monkeypatch it and a partially deployed wave never stops receipts —
+    when unavailable the payload stores None and the renderer shows an honest
+    'not available yet' state.
+    """
+    try:
+        from gm.intel.feature_share import competitive_position
+    except ImportError:
+        return None
+    return competitive_position
 
 
 def _url_variants(urls: set[str]) -> list[str]:
@@ -575,6 +600,14 @@ def assemble_site_receipt(conn: psycopg.Connection, *, site_id: Any, period: str
             ),
         }
 
+    # -- competitive position (phase D2; module may not be deployed yet) --------
+    position_fn = _competitive_position_fn()
+    competitive = (
+        position_fn(conn, site_id, since=start, until=end - dt.timedelta(days=1))
+        if position_fn is not None
+        else None  # renderer shows the honest 'not available yet' state
+    )
+
     payload = _jsonable({
         "period": period,
         "period_start": start,
@@ -589,6 +622,7 @@ def assemble_site_receipt(conn: psycopg.Connection, *, site_id: Any, period: str
         "fix_log": {"levers": levers, "published": published},
         "content": content,
         "rank_tracking": rank_tracking,
+        "competitive_position": competitive,
         "citations": {
             "prompts": prompts,
             "controls": {"sites": control_sites, "mean_abs_drift": mean_abs_drift},
@@ -910,6 +944,162 @@ def _rank_tracking_html(payload: dict) -> list[str]:
     return out
 
 
+def _count_cell(value: Any) -> str:
+    """Integer count cell; None (no observations) is an honest &mdash;, never 0."""
+    n = report._num(value)
+    return "&mdash;" if n is None else _esc(int(n))
+
+
+def _median_cell(median: Any, n: Any) -> str:
+    m = report._num(median)
+    if m is None:
+        return "&mdash;"
+    count = report._num(n)
+    out = _esc(f"{m:g}")
+    if count:
+        out += f" (n={_esc(int(count))})"
+    return out
+
+
+def _profile_cell(profile: Any) -> str:
+    """Latest monthly profile summary; 'no data yet' for absent or all-NULL rows."""
+    if not isinstance(profile, dict):
+        return '<span class="honest">no data yet</span>'
+    kw = report._num(profile.get("total_keywords"))
+    top10 = report._num(profile.get("top10_keywords"))
+    traffic = report._num(profile.get("est_traffic"))
+    if kw is None and top10 is None and traffic is None:
+        return '<span class="honest">no data yet</span>'
+    parts = [
+        "kw " + ("&mdash;" if kw is None else _esc(int(kw))),
+        "top10 " + ("&mdash;" if top10 is None else _esc(int(top10))),
+        "traffic " + ("&mdash;" if traffic is None else _esc(round(traffic))),
+    ]
+    movers = report._dict_or_empty(profile.get("movers"))
+    mover_parts = [
+        f"{label} {_esc(int(report._num(movers.get(label)) or 0))}"
+        for label in ("new", "up", "down", "lost")
+        if report._num(movers.get(label)) is not None
+    ]
+    if mover_parts:
+        parts.append("movers " + "/".join(mover_parts))
+    return " &middot; ".join(parts)
+
+
+def _share_cell(bucket: Any) -> str:
+    """One feature-share table cell: 'you k/n' + per-competitor counts."""
+    bucket = report._dict_or_empty(bucket)
+    present = report._num(bucket.get("present"))
+    if not present:
+        return "&mdash;"
+    parts = [f"you {_count_cell(bucket.get('you'))}/{_esc(int(present))}"]
+    competitors = report._dict_or_empty(bucket.get("competitors"))
+    for host, n in competitors.items():
+        parts.append(f"{_esc(host)} {_count_cell(n)}")
+    for label in ("other", "unattributed"):
+        n = report._num(bucket.get(label))
+        if n:
+            parts.append(f"{label} {_esc(int(n))}")
+    return " &middot; ".join(parts)
+
+
+def _feature_share_html(share: Any) -> list[str]:
+    out = ["<h3>SERP feature share</h3>"]
+    share = report._dict_or_empty(share)
+    note = share.get("note")
+    if note:
+        out.append(f'<p class="honest">{_esc(note)}.</p>')
+    weeks = share.get("weeks") if isinstance(share.get("weeks"), list) else []
+    if not weeks:
+        if not note:
+            out.append('<p class="honest">No feature-share data in this window yet.</p>')
+        return out
+    out.append(
+        '<table class="delta"><thead><tr><th>Week</th><th>AI Overview</th>'
+        "<th>Featured snippet</th><th>People also ask</th></tr></thead><tbody>"
+    )
+    for week in weeks:
+        if not isinstance(week, dict):
+            continue
+        features = report._dict_or_empty(week.get("features"))
+        out.append(
+            f"<tr><td>{_esc(week.get('week_start'))}</td>"
+            f"<td>{_share_cell(features.get('ai_overview'))}</td>"
+            f"<td>{_share_cell(features.get('featured_snippet'))}</td>"
+            f"<td>{_share_cell(features.get('people_also_ask'))}</td></tr>"
+        )
+    out.append("</tbody></table>")
+    out.append(
+        '<p class="honest">Latest snapshot per tracked query per week (Mon-start); '
+        "counts are queries where each party owns or is cited in the feature.</p>"
+    )
+    return out
+
+
+def _competitive_html(payload: dict) -> list[str]:
+    """The 'Competitive position' section (phase D2): you-row + one row per
+    configured competitor + the weekly feature-share mini-table. Honest empty
+    states for section-absent / no-competitors / has_data=False — a competitor
+    without data reads 'no data yet', never zeros."""
+    out = [
+        "<section><h2>Competitive position</h2>",
+        '<p class="sub">You vs configured competitors this period: tracked-query '
+        "rank counts, AI Overview citations, reference-audit medians, monthly "
+        "profile metrics.</p>",
+    ]
+    position = payload.get("competitive_position")
+    if not isinstance(position, dict):
+        out.append('<p class="honest">Competitive intelligence is not available yet.</p>')
+        out.append("</section>")
+        return out
+    note = position.get("note")
+    if note:
+        out.append(f'<p class="honest">{_esc(note)}.</p>')
+    you = report._dict_or_empty(position.get("you"))
+    competitors = (
+        position.get("competitors") if isinstance(position.get("competitors"), list) else []
+    )
+    out.append(
+        '<table class="delta"><thead><tr><th>Domain</th><th>Top 3</th><th>Top 10</th>'
+        "<th>AIO citations</th><th>Audit median</th><th>Profile</th></tr></thead><tbody>"
+    )
+    out.append(
+        f"<tr><td>{_esc(you.get('domain'))} (you)</td>"
+        f"<td>{_count_cell(you.get('rank_top3'))}</td>"
+        f"<td>{_count_cell(you.get('rank_top10'))}</td>"
+        f"<td>{_count_cell(you.get('aio_citations'))}</td>"
+        f"<td>{_median_cell(you.get('audit_median'), you.get('audit_n'))}</td>"
+        "<td>&mdash;</td></tr>"
+    )
+    for comp in competitors:
+        if not isinstance(comp, dict):
+            continue
+        if not comp.get("has_data"):
+            out.append(
+                f"<tr><td>{_esc(comp.get('domain'))}</td>"
+                '<td colspan="5"><span class="honest">no data yet</span></td></tr>'
+            )
+            continue
+        out.append(
+            f"<tr><td>{_esc(comp.get('domain'))}</td>"
+            f"<td>{_count_cell(comp.get('rank_top3'))}</td>"
+            f"<td>{_count_cell(comp.get('rank_top10'))}</td>"
+            f"<td>{_count_cell(comp.get('aio_citations'))}</td>"
+            f"<td>{_median_cell(comp.get('audit_median'), comp.get('audit_n'))}</td>"
+            f"<td>{_profile_cell(comp.get('profile'))}</td></tr>"
+        )
+    out.append("</tbody></table>")
+    if not competitors and not note:
+        out.append('<p class="honest">No competitors configured for this site yet.</p>')
+    out.append(
+        '<p class="honest">Rank counts use the last tracked check per query in the '
+        "window; audit medians cover competitor-reference audits only.</p>"
+    )
+    out.extend(_feature_share_html(position.get("feature_share")))
+    out.append("</section>")
+    return out
+
+
 def _ci_txt(ci: Any) -> str:
     if not isinstance(ci, (list, tuple)) or len(ci) != 2:
         return ""
@@ -1047,6 +1237,7 @@ def render_receipt_html(
     out.extend(_findings_html(content, checks_meta))
     out.extend(_gsc_html(payload))
     out.extend(_rank_tracking_html(payload))  # before the BETA citation section
+    out.extend(_competitive_html(payload))  # phase D2: directly after 'Google visibility'
     out.extend(_citations_html(payload))
     out.extend(_ops_html(payload))
     out.append(

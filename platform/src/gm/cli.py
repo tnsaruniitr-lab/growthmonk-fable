@@ -189,6 +189,16 @@ def worker(
 
         handle_send_lead_card(ctx)
 
+    def _lazy_refresh_competitor_profiles(ctx: jobs_mod.JobContext) -> None:
+        from gm.intel.competitors import handle_refresh_competitor_profiles
+
+        handle_refresh_competitor_profiles(ctx)
+
+    def _lazy_discover_competitors(ctx: jobs_mod.JobContext) -> None:
+        from gm.intel.discovery import handle_discover_competitors
+
+        handle_discover_competitors(ctx)
+
     def _handle_scheduled_run(ctx: jobs_mod.JobContext) -> None:
         payload = ctx.job.payload
         sampler.enqueue_run(
@@ -228,6 +238,8 @@ def worker(
         "track_serps": handle_track_serps,
         "keyword_gap": handle_keyword_gap,
         "send_lead_card": _lazy_send_lead_card,
+        "refresh_competitor_profiles": _lazy_refresh_competitor_profiles,
+        "discover_competitors": _lazy_discover_competitors,
     }
     stop = threading.Event()
     if with_scheduler:
@@ -627,17 +639,54 @@ def wa_connect(
     typer.echo("whatsapp connected")
 
 
+def _check_depth_flag(depth: int | None) -> None:
+    if depth is not None and depth not in (10, 100):
+        raise typer.BadParameter("depth must be 10 or 100")
+
+
 @track_app.command("add")
-def track_add(domain: str, query: str, target_page: str = typer.Option(None)):
+def track_add(
+    domain: str,
+    query: str,
+    target_page: str = typer.Option(None),
+    depth: int = typer.Option(
+        None, "--depth", help="SERP depth 10 (default) or 100 (opt-in, ~2x provider cost)"
+    ),
+):
     from gm.intel.rank_tracker import add_tracked_query
 
+    _check_depth_flag(depth)
     with db.connect() as conn:
         org = _org(conn)
         db.set_org(conn, org["id"])
         site = panel_mod.get_site(conn, org["id"], domain)
-        tid = add_tracked_query(conn, org["id"], str(site["id"]), query, target_page=target_page)
+        tid = add_tracked_query(
+            conn, org["id"], str(site["id"]), query, target_page=target_page, serp_depth=depth
+        )
         conn.commit()
     typer.echo(tid)
+
+
+@track_app.command("set-depth")
+def track_set_depth(
+    domain: str,
+    query: str,
+    depth: int = typer.Option(..., "--depth", help="SERP depth: 10 or 100"),
+):
+    """Change the SERP depth of an already-tracked query (10 default, 100 opt-in)."""
+    from gm.intel.rank_tracker import set_query_depth
+
+    _check_depth_flag(depth)
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        updated = set_query_depth(conn, str(site["id"]), query, depth)
+        conn.commit()
+    if not updated:
+        typer.echo(f"query not tracked for {site['domain_norm']}: {query!r} — run: gm track add")
+        raise typer.Exit(1)
+    typer.echo(f"depth={depth} set for {query!r}")
 
 
 @track_app.command("run")
@@ -684,6 +733,260 @@ def site_set_competitors(domain: str, competitors: str = typer.Option(..., help=
                      ([c.strip() for c in competitors.split(",") if c.strip()], site["id"]))
         conn.commit()
     typer.echo("competitors set")
+
+
+# --- competitor intelligence (Phase D2, WP-D) ---------------------------------------------
+
+competitors_app = typer.Typer(
+    help="Competitor intelligence: profiles, discovery, competitive position", no_args_is_help=True
+)
+app.add_typer(competitors_app, name="competitors")
+
+MONTHLY_MINUTES = 43200  # 30 days — the D2 refresh cadence (COMMON contract)
+
+
+def _fmt(value, none: str = "—") -> str:
+    return none if value is None else str(value)
+
+
+def _profile_line(profile: dict | None) -> str:
+    """One-line render of latest_profile output. None = never fetched -> the
+    empty-state law's "no data yet"; a stored NULLs row renders dashes with its
+    check date (we looked, the provider had nothing — different from never)."""
+    if profile is None:
+        return "no data yet"
+    traffic = profile["est_traffic"]
+    movers = profile.get("movers") or {}
+    mover_bits = " ".join(
+        f"{key}={movers[key]}"
+        for key in ("new", "up", "down", "lost")
+        if movers.get(key) is not None
+    )
+    line = (
+        f"kw={_fmt(profile['total_keywords'])} top10={_fmt(profile['top10_keywords'])}"
+        f" traffic={_fmt(round(traffic) if traffic is not None else None)}"
+        f" ({profile['checked_on']})"
+    )
+    return f"{line}  {mover_bits}" if mover_bits else line
+
+
+@competitors_app.command("list")
+def competitors_list(domain: str):
+    """Configured competitors + latest monthly profile each + open candidate count."""
+    from gm.intel.competitors import latest_profile
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        configured = [c for c in (site["competitor_domains"] or []) if c]
+        profiles = [(comp, latest_profile(conn, site["id"], comp)) for comp in configured]
+        open_candidates = conn.execute(
+            "select count(*) as n from queue_items where site_id=%s"
+            " and kind='competitor_candidate' and status='open'",
+            (site["id"],),
+        ).fetchone()["n"]
+        conn.rollback()  # read-only
+    if not configured:
+        typer.echo(
+            "no competitors configured — run: gm competitors discover"
+            " / gm site set-competitors"
+        )
+    for comp, profile in profiles:
+        typer.echo(f"{comp:40} {_profile_line(profile)}")
+    suffix = "  — review: gm competitors confirm/dismiss" if open_candidates else ""
+    typer.echo(f"open candidates: {open_candidates}{suffix}")
+
+
+@competitors_app.command("discover")
+def competitors_discover(
+    domain: str,
+    limit: int = typer.Option(10, help="Candidates to queue (refused above the max of 10)"),
+    now: bool = typer.Option(False, "--now", help="Run inline instead of enqueueing"),
+):
+    """Discover competitor candidates via Labs; queue them for confirm/dismiss review."""
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        if now:
+            from gm.intel.discovery import discover_competitors
+
+            result = discover_competitors(
+                conn, org_id=org["id"], site_id=str(site["id"]), limit=limit
+            )
+            conn.commit()
+            typer.echo(
+                f"candidates={result['candidates']} queued={result['queued']}"
+                f" cost=${result['cost_cents'] / 100:.4f}"
+            )
+            if result["note"]:
+                typer.echo(f"note: {result['note']}")
+        else:
+            job_id = jobs_mod.enqueue(
+                conn, type="discover_competitors", org_id=org["id"], site_id=str(site["id"]),
+                payload={"site_id": str(site["id"]), "limit": limit},
+                idempotency_key=(
+                    f"discover_competitors:{site['id']}:{dt.date.today().isoformat()}"
+                ),
+            )
+            conn.commit()
+            typer.echo(f"enqueued job {job_id} (discover_competitors limit={limit})")
+
+
+@competitors_app.command("confirm")
+def competitors_confirm(domain: str, host: str):
+    """Confirm a discovery candidate: append to sites.competitor_domains."""
+    from gm.intel.discovery import confirm_candidate
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        appended = confirm_candidate(conn, site_id=site["id"], domain=host)
+        conn.commit()
+    typer.echo(
+        f"{host}: added to competitor_domains" if appended
+        else f"{host}: already configured (candidate actioned)"
+    )
+
+
+@competitors_app.command("dismiss")
+def competitors_dismiss(
+    domain: str,
+    host: str,
+    snooze_days: int = typer.Option(90, help="Discovery re-queues only after this elapses"),
+):
+    """Dismiss a discovery candidate (snoozed; actioned/done rows are never touched)."""
+    from gm.intel.discovery import dismiss_candidate
+
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        dismissed = dismiss_candidate(
+            conn, site_id=site["id"], domain=host, snooze_days=snooze_days
+        )
+        conn.commit()
+    if not dismissed:
+        typer.echo(f"{host}: no open candidate to dismiss")
+        raise typer.Exit(1)
+    typer.echo(f"{host}: dismissed (snoozed {snooze_days}d)")
+
+
+@competitors_app.command("refresh")
+def competitors_refresh(
+    domain: str,
+    now: bool = typer.Option(False, "--now", help="Run inline instead of enqueueing"),
+    monthly: bool = typer.Option(
+        False, "--monthly", help="Insert the monthly schedules row instead of a one-off job"
+    ),
+):
+    """Refresh monthly competitor profiles (one-off job by default)."""
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        if monthly:
+            existing = conn.execute(
+                "select id from schedules where site_id=%s"
+                " and job_type='refresh_competitor_profiles' and enabled",
+                (site["id"],),
+            ).fetchone()
+            if existing:
+                typer.echo("monthly refresh already scheduled")
+            else:
+                conn.execute(
+                    "insert into schedules (org_id, site_id, job_type, payload, every_minutes)"
+                    " values (%s, %s, 'refresh_competitor_profiles', %s, %s)",
+                    (org["id"], site["id"], Jsonb({}), MONTHLY_MINUTES),
+                )
+                typer.echo(f"monthly refresh scheduled (every {MONTHLY_MINUTES} minutes)")
+        if now:
+            from gm.intel.competitors import refresh_competitor_profiles
+
+            result = refresh_competitor_profiles(conn, org_id=org["id"], site_id=str(site["id"]))
+            typer.echo(
+                f"refreshed={result['refreshed']} cached={result['cached']}"
+                f" empty={result['empty']} cost=${result['cost_cents'] / 100:.4f}"
+            )
+            if result["note"]:
+                typer.echo(f"note: {result['note']}")
+        elif not monthly:
+            job_id = jobs_mod.enqueue(
+                conn, type="refresh_competitor_profiles", org_id=org["id"],
+                site_id=str(site["id"]), payload={},
+                idempotency_key=(
+                    f"refresh_competitor_profiles:{site['id']}:{dt.date.today().isoformat()}"
+                ),
+            )
+            typer.echo(f"enqueued job {job_id} (refresh_competitor_profiles)")
+        conn.commit()
+
+
+def _position_lines(position: dict) -> list[str]:
+    """competitive_position payload -> CLI text; empty-state notes verbatim,
+    None values as em-dashes (never fake zeros), has_data=False as 'no data yet'."""
+    you = position["you"]
+    lines = [f"window {position['window']['since']} → {position['window']['until']}"]
+    if position.get("note"):
+        lines.append(f"note: {position['note']}")
+    lines.append(
+        f"you: {you['domain']}  tracked={you['tracked_queries']}"
+        f" top3={_fmt(you['rank_top3'])} top10={_fmt(you['rank_top10'])}"
+        f" aio={_fmt(you['aio_citations'])}"
+        f" audit={_fmt(you['audit_median'])} (n={you['audit_n']})"
+    )
+    for comp in position["competitors"]:
+        if not comp["has_data"]:
+            lines.append(f"  {comp['domain']}: no data yet")
+            continue
+        line = (
+            f"  {comp['domain']}: top3={_fmt(comp['rank_top3'])}"
+            f" top10={_fmt(comp['rank_top10'])} aio={_fmt(comp['aio_citations'])}"
+            f" audit={_fmt(comp['audit_median'])} (n={comp['audit_n']})"
+        )
+        if comp["profile"] is not None:
+            line += f"  profile: {_profile_line(comp['profile'])}"
+        lines.append(line)
+    share = position["feature_share"]
+    lines.append(f"feature share ({share['queries']} tracked queries):")
+    if share.get("note"):
+        lines.append(f"  note: {share['note']}")
+    for week in share["weeks"]:
+        for ftype, bucket in week["features"].items():
+            if not bucket["present"]:
+                continue
+            comps = " ".join(f"{host}={n}" for host, n in sorted(bucket["competitors"].items()))
+            lines.append(
+                f"  {week['week_start']} {ftype}: present={bucket['present']}"
+                f" you={bucket['you']}" + (f" {comps}" if comps else "")
+                + f" other={bucket['other']} unattributed={bucket['unattributed']}"
+            )
+    return lines
+
+
+@competitors_app.command("position")
+def competitors_position(
+    domain: str,
+    month: str = typer.Option(None, "--month", help="YYYY-MM, default current month"),
+):
+    """Competitive position + feature share for a month, as text (zero spend)."""
+    from gm.delivery.receipts import period_bounds
+    from gm.intel.feature_share import competitive_position
+
+    month = month or dt.date.today().strftime("%Y-%m")
+    start, end = period_bounds(month)
+    with db.connect() as conn:
+        org = _org(conn)
+        db.set_org(conn, org["id"])
+        site = panel_mod.get_site(conn, org["id"], domain)
+        position = competitive_position(
+            conn, str(site["id"]), since=start, until=end - dt.timedelta(days=1)
+        )
+        conn.rollback()  # read-only
+    for line in _position_lines(position):
+        typer.echo(line)
 
 
 @app.command()

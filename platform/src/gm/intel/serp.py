@@ -218,12 +218,28 @@ def _normalize_items(items: list) -> tuple[list[dict], list[dict]]:
             features.append(feature)
         if item_type == "people_also_ask":
             questions: list = feature.setdefault("questions", [])
+            # Phase D2 (WP-C): retain the answer-source hosts (normalized,
+            # encounter order, deduped) so feature_share can attribute the
+            # feature. Snapshots stored before this landed lack the field and
+            # are counted "unattributed" downstream — never guessed.
+            source_domains: list = feature.setdefault("source_domains", [])
             for sub in item.get("items") or []:
                 if not isinstance(sub, dict):
                     continue
                 question = str(sub.get("title") or "").strip()
                 if question and question not in questions:
                     questions.append(question)
+                _collect_aio_hosts(sub, source_domains)
+        if item_type == "featured_snippet":
+            # Phase D2 (WP-C): retain the snippet OWNER (first snippet wins).
+            # Old snapshots lack the fields -> "unattributed" downstream.
+            url = str(item.get("url") or "")
+            if url and "url" not in feature:
+                feature["url"] = url
+            owner = str(item.get("domain") or "") or url
+            host = normalize_host(owner) if owner else ""
+            if host and "domain" not in feature:
+                feature["domain"] = host
         if item_type == "ai_overview":
             # Phase D0 (agent A): retain the AI Overview parse on the feature so
             # serp_snapshots.features carries it — rank_tracker reads AIO citation
@@ -371,19 +387,23 @@ def get_snapshot(
     max_age_days: int = 7,
     client: DataForSeoClient | None = None,
     location: str = DEFAULT_LOCATION,
+    depth: int = 10,
 ) -> dict:
     """Latest serp_snapshots row within the TTL, else buy one via `client`.
 
-    Returns {id, results, features, fetched_at, fresh}: fresh=True means the
-    snapshot was just purchased (a cost_event was recorded), False = cache hit.
+    Returns {id, results, features, fetched_at, depth, fresh}: fresh=True means
+    the snapshot was just purchased (a cost_event was recorded), False = cache
+    hit. Phase D2: a cached row satisfies the request iff row.depth >= depth —
+    a top-100 snapshot serves a top-10 request, never the reverse; purchases
+    pass `depth` to the provider and store it on the row.
     """
     q = query_norm(query)
     row = conn.execute(
-        "select id, results, features, fetched_at from serp_snapshots"
-        " where site_id = %s and query_norm = %s and location = %s"
+        "select id, results, features, fetched_at, depth from serp_snapshots"
+        " where site_id = %s and query_norm = %s and location = %s and depth >= %s"
         " and fetched_at > now() - make_interval(days => %s)"
         " order by fetched_at desc limit 1",
-        (site_id, q, location, max_age_days),
+        (site_id, q, location, depth, max_age_days),
     ).fetchone()
     if row is not None:
         return {
@@ -391,15 +411,17 @@ def get_snapshot(
             "results": row["results"],
             "features": row["features"],
             "fetched_at": row["fetched_at"],
+            "depth": row["depth"],
             "fresh": False,
         }
     org_id = _site_org(conn, site_id)
     client = client or DataForSeoClient()
-    result = client.serp_live(query, location=location)
+    result = client.serp_live(query, location=location, depth=depth)
     inserted = conn.execute(
         "insert into serp_snapshots"
-        " (org_id, site_id, query_norm, location, results, features, provider, cost_cents)"
-        " values (%s, %s, %s, %s, %s, %s, %s, %s) returning id, fetched_at",
+        " (org_id, site_id, query_norm, location, results, features, provider,"
+        " cost_cents, depth)"
+        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s) returning id, fetched_at",
         (
             org_id,
             site_id,
@@ -409,6 +431,7 @@ def get_snapshot(
             Jsonb(result.features),
             PROVIDER,
             result.cost_cents,
+            depth,
         ),
     ).fetchone()
     record_cost(
@@ -417,13 +440,14 @@ def get_snapshot(
         purpose="serp_live",
         cost_cents=result.cost_cents,
         org_id=org_id,
-        units={"query": q, "location": location},
+        units={"query": q, "location": location, "depth": depth},
     )
     return {
         "id": str(inserted["id"]),
         "results": result.organic,
         "features": result.features,
         "fetched_at": inserted["fetched_at"],
+        "depth": depth,
         "fresh": True,
     }
 
